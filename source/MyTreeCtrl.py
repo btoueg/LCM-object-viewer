@@ -1,0 +1,461 @@
+# -*- coding: utf-8 -*-
+
+import wx
+
+import MyAsciiParser
+from MyAsciiParser import LinkedListElement
+from MyCalculation import MyMicroLib, MyCalculation
+from MyRefcase import MyRefcase
+
+try:
+  import ROOT
+  from ROOT import gROOT, TCanvas,TH2F
+except ImportError:
+  print "ROOT couldn't be imported, continuing anyway..."
+
+class MyTreeCtrl(wx.TreeCtrl):
+  def __init__(self,parent):
+    wx.TreeCtrl.__init__(self,parent)
+
+  def bind(self,mainWindow):
+    self.Bind(wx.EVT_TREE_ITEM_EXPANDED, mainWindow.OnItemExpanded, self)
+    self.Bind(wx.EVT_TREE_ITEM_COLLAPSED, mainWindow.OnItemCollapsed, self)
+    self.Bind(wx.EVT_TREE_SEL_CHANGED, mainWindow.OnSelChanged, self)
+    self.Bind(wx.EVT_TREE_ITEM_ACTIVATED, mainWindow.OnActivated, self)
+
+  def find(self,root,searchString,searchAll=True):
+    """
+    Return node,-1 for if node's label if ok
+    Return node,idx for if sheet's idxth cell if ok
+    FIXME : searchAll=False should break when the first item is found
+    """
+    nodeList = []
+    nc = self.GetChildrenCount(root,False)
+
+    def GetFirstChild(parent, cookie):
+      return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+      child,cookie = GetChild( root, cookie )
+      GetChild = self.GetNextChild
+      if searchString in self.GetItemText(child).lower():
+        nodeList.append((child,-1))
+      if( self.ItemHasChildren( child ) ):
+        nodeList += self.find( child, searchString )
+      else:
+        content = self.GetPyData(child).content
+        for i,c in enumerate(content):
+          if searchString in c.lower():
+            nodeList.append((child,i))
+    return nodeList
+
+  def findMatchCase(self,root,searchString):
+    """
+    Return node,-1 for if node's label if ok
+    Return node,idx for if sheet's idxth cell if ok
+    """
+    nodeList = []
+    nc = self.GetChildrenCount(root,False)
+
+    def GetFirstChild(parent, cookie):
+      return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+      child,cookie = GetChild( root, cookie )
+      GetChild = self.GetNextChild
+      if searchString in self.GetItemText(child):
+        nodeList.append((child,-1))
+      if( self.ItemHasChildren( child ) ):
+        nodeList += self.find( child, searchString )
+      else:
+        content = self.GetPyData(child).content
+        for i,c in enumerate(content):
+          if searchString in c:
+            nodeList.append((child,i))
+    return nodeList
+
+  #def findCell(self,root,searchString,matchCase = False,matchWholeField = False):
+    #"""
+    #Return the first cell for which the label is searchString
+    #"""
+    #i = -1
+    #search = None
+    #nc = self.GetChildrenCount(root,False)
+
+    #def GetFirstChild(parent, cookie):
+      #return self.GetFirstChild(parent)
+
+    #GetChild = GetFirstChild
+    #cookie = 1
+    #for i in range(nc):
+      #child,cookie = GetChild( root, cookie )
+      #GetChild = self.GetNextChild
+      #if( self.ItemHasChildren( child ) ):
+        #search = self.findCell( child, searchString, matchCase, matchWholeField )
+        #if( search != None ):
+          #break
+      #else:
+        #content = self.GetPyData(child).content
+        #if matchWholeField:
+          #if searchString in content:
+            #search = child
+            #i = content.index(searchString)
+            #break
+        #else:
+          #for i,c in enumerate(content):
+            #if searchString in c:
+              #search = child
+              #break
+          #if search != None:
+            #break
+    #return search
+
+  def getChildId(self,parent,childText):
+    childId = None
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+      return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+      child, cookie = GetChild(parent, cookie)
+      GetChild = self.GetNextChild
+      if self.GetItemText(child) == childText:
+        childId = child
+        break
+    return childId
+
+  def getChildrenId(self,parent):
+    ChildrenId = []
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+      return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+      child, cookie = GetChild(parent, cookie)
+      GetChild = self.GetNextChild
+      ChildrenId.append(child)
+    return ChildrenId
+
+  def getChildData(self,parent,childText):
+    childData = None
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+        return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+        child, cookie = GetChild(parent, cookie)
+        GetChild = self.GetNextChild
+	if self.GetItemText(child) == childText:
+	    childData = self.GetPyData(child)
+	    break
+    return childData
+
+  def getChildrenData(self,parent):
+    childrenData = []
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+        return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+        child, cookie = GetChild(parent, cookie)
+        GetChild = self.GetNextChild
+	childrenData.append(self.GetPyData(child))
+    return childrenData
+
+  def expandAllChildren(self,parent):
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+        return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+        child, cookie = GetChild(parent, cookie)
+        GetChild = self.GetNextChild
+        self.expandAllChildren(child)
+        self.Expand(child)
+
+  def collapseAllChildren(self,parent):
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+        return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+        child, cookie = GetChild(parent, cookie)
+        GetChild = self.GetNextChild
+        self.collapseAllChildren(child)
+        self.Collapse(child)
+
+  def collapseChildren(self,parent):
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+        return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+        child, cookie = GetChild(parent, cookie)
+        GetChild = self.GetNextChild
+        self.Collapse(child)
+
+  def expandAll(self):
+    self.expandAllChildren(self.GetRootItem())
+
+  def GetPrevVisible(self,item):
+    lastVisibleChild = item
+    parent = self.GetItemParent(item)
+    nc = self.GetChildrenCount(parent,False)
+
+    def GetFirstChild(parent, cookie):
+        return self.GetFirstChild(parent)
+
+    GetChild = GetFirstChild
+    cookie = 1
+    for i in range(nc):
+        child, cookie = GetChild(parent, cookie)
+        if child == item:
+          break
+        GetChild = self.GetNextChild
+        if self.IsVisible(child):
+          lastVisibleChild = child
+
+    if lastVisibleChild == item:
+      lastVisibleChild = parent
+
+    return lastVisibleChild
+
+  def recoverAsciiFile(self,file):
+    root = self.AddRoot(file)
+    #MyAsciiParser.asciiToTree(file,self) # this method has been implemented last, and is a bit faster
+    elementList = MyAsciiParser.asciiToElementList(file)
+    self.ConstructAsciiTree(elementList)
+
+  def computeMulticompoCalculation(self,eltId,eltData,parentId,parentData):
+    nameDirId = self.GetItemParent(self.GetItemParent(self.GetItemParent(eltId)))
+    nameDirData = self.GetPyData(nameDirId)
+    eltDataStateVector = self.getChildData(nameDirId, "STATE-VECTOR")
+    eltGlobalId = self.getChildId(nameDirId, "GLOBAL")
+    eltParkey = self.getChildData(eltGlobalId, "PARKEY")
+    calcIdList = self.getChildrenId(eltId)
+    eltDataTreeId = self.getChildId(parentId, "TREE")
+    eltDataDebarb = self.getChildData(eltDataTreeId, "DEBARB")
+    eltDataArbval = self.getChildData(eltDataTreeId, "ARBVAL")
+    eltDataNvp = self.getChildData(eltDataTreeId, "NVP")
+    eltDataNcals = self.getChildData(eltDataTreeId, "NCALS")
+    ngroup = int(eltDataStateVector.content[1])
+    nvp = int(eltDataNvp.content[0])
+    nptot = len(eltParkey.content)
+    ncals = int(eltDataNcals.content[0])
+    debarb = eltDataDebarb.content
+    arbval = eltDataArbval.content
+    myCalculation = MyCalculation(ngroup)
+    for cId in calcIdList:
+      c = self.GetPyData(cId)
+      ical = int(c.label)
+      muplet = MyAsciiParser.comupl(nvp,nptot,ical,ncals,debarb,arbval)
+      c.contentType = 1
+      c.content = muplet
+      stateVector  = self.getChildData(cId, "STATE-VECTOR")
+      nameData = self.getChildData(cId, "ISOTOPERNAME")
+      densData = self.getChildData(cId, "ISOTOPESDENS")
+      tempData = self.getChildData(cId, "ISOTOPESTEMP")
+      todoData = self.getChildData(cId, "ISOTOPESTODO")
+      typeData = self.getChildData(cId, "ISOTOPESTYPE")
+      usedData = self.getChildData(cId, "ISOTOPESUSED")
+      volData  = self.getChildData(cId, "ISOTOPESVOL")
+      microLib = MyMicroLib(stateVector.content, nameData.content, densData.content, tempData.content, todoData.content, typeData.content, usedData.content, volData.content)
+      for isotope in microLib.isotopeRname:
+        eltIsoId = self.getChildId(cId, isotope)
+        eltXSList   = self.getChildrenData(eltIsoId)
+        microLib.addIsotope(isotope,eltXSList)
+      myCalculation.addCalc(muplet,microLib)
+    pvalList=[]
+    for i in range(len(eltParkey.content)):
+      pvali = "pval%08d" % (i+1)
+      eltPvali    = self.getChildData(eltGlobalId,pvali)
+      pvalList.append(eltPvali.content)
+    myCalculation.setParkey(eltParkey.content)
+    myCalculation.setPvalList(pvalList)
+    myCalculation.initializeOnceFilled()
+    #myCalculation.computeDiffFromSTRD()
+    eltData.content = myCalculation
+
+  def computeEditionRefcase(self,eltId,eltData,parentId,parentData):
+    isotopeNameList = self.getChildData(eltId, "ISOTOPERNAME").content
+    isotopeDensList = self.getChildData(eltId, "ISOTOPESDENS").content
+    for i in range(len(isotopeNameList)):
+      isotopeNameLength = len(isotopeNameList[i])
+      if isotopeNameLength != 8:
+        addSpace = ' '*(8-isotopeNameLength)
+        isotopeNameList[i]=isotopeNameList[i]+addSpace
+      isotopeNameList[i]=isotopeNameList[i]+"%04d" % 1
+    calcIdList = self.getChildrenId(eltId)
+    dicoRefcase = MyRefcase()
+    for cId in calcIdList:
+      c = self.GetPyData(cId)
+      if c.label in isotopeNameList:
+        eltXSList = self.getChildrenData(cId)
+        for eltXS in eltXSList:
+          dicoRefcase.addXS(c.label,eltXS)
+        eltDens = LinkedListElement(id=-1,level=-1,labelType=-1,label='DENSITY',contentType=2,content=[isotopeDensList[isotopeNameList.index(c.label)]])
+        dicoRefcase.addXS(c.label,eltDens)
+    dicoRefcase.createUserComputedMacroIsotope()
+    dicoRefcase.computeMacro()
+    eltData.content = dicoRefcase
+
+  def computeReactionRate(self,eltId,eltData,parentId,parentData):
+    groupIdList = self.getChildrenId(eltId)
+    ngroup = len(groupIdList)
+    meshXData = self.getChildData(parentId, "MESHX")
+    meshYData = self.getChildData(parentId, "MESHY")
+    meshZData = self.getChildData(parentId, "MESHZ")
+    nx = len(meshXData.content)
+    ny = len(meshYData.content)
+    nz = len(meshZData.content)
+    #nameDirId = self.GetItemParent(self.GetItemParent(self.GetItemParent(eltId)))
+    #nameDirData = self.GetPyData(nameDirId)
+    #eltDataStateVector = self.getChildData(nameDirId, "STATE-VECTOR")
+    #eltGlobalId = self.getChildId(nameDirId, "GLOBAL")
+    #eltParkey = self.getChildData(eltGlobalId, "PARKEY")
+    #calcIdList = self.getChildrenId(eltId)
+    #eltDataTreeId = self.getChildId(parentId, "TREE")
+    #eltDataDebarb = self.getChildData(eltDataTreeId, "DEBARB")
+    #eltDataArbval = self.getChildData(eltDataTreeId, "ARBVAL")
+    #eltDataNvp = self.getChildData(eltDataTreeId, "NVP")
+    #eltDataNcals = self.getChildData(eltDataTreeId, "NCALS")
+
+    #nvp = int(eltDataNvp.content[0])
+    #nptot = len(eltParkey.content)
+    #ncals = int(eltDataNcals.content[0])
+    #debarb = eltDataDebarb.content
+    #arbval = eltDataArbval.content
+    myCalculation = MyCalculation(ngroup)
+    for gId in groupIdList:
+      g = self.GetPyData(gId)
+      igr = int(g.label)
+      for ix,mx in enumerate(meshXData.content):
+        for iy,my in enumerate(meshYData.content):
+          for iz,mz in enumerate(meshZData.content):
+            muplet = [ix,iy,iz,igr]
+            print muplet,ix+nx*iy+nx*ny*iz
+      #c.contentType = 1
+      #c.content = muplet
+      #stateVector  = self.getChildData(cId, "STATE-VECTOR")
+      #nameData = self.getChildData(cId, "ISOTOPERNAME")
+      #densData = self.getChildData(cId, "ISOTOPESDENS")
+      #tempData = self.getChildData(cId, "ISOTOPESTEMP")
+      #todoData = self.getChildData(cId, "ISOTOPESTODO")
+      #typeData = self.getChildData(cId, "ISOTOPESTYPE")
+      #usedData = self.getChildData(cId, "ISOTOPESUSED")
+      #volData  = self.getChildData(cId, "ISOTOPESVOL")
+      #microLib = MyMicroLib(stateVector.content, nameData.content, densData.content, tempData.content, todoData.content, typeData.content, usedData.content, volData.content)
+      #for isotope in microLib.isotopeRname:
+        #eltIsoId = self.getChildId(cId, isotope)
+        #eltXSList   = self.getChildrenData(eltIsoId)
+        #microLib.addIsotope(isotope,eltXSList)
+      #myCalculation.addCalc(muplet,microLib)
+    #pvalList=[]
+    #for i in range(len(eltParkey.content)):
+      #pvali = "pval%08d" % (i+1)
+      #eltPvali    = self.getChildData(eltGlobalId,pvali)
+      #pvalList.append(eltPvali.content)
+    #myCalculation.setParkey(eltParkey.content)
+    #myCalculation.setPvalList(pvalList)
+    #myCalculation.initializeOnceFilled()
+    ##myCalculation.computeDiffFromSTRD()
+    #eltData.content = myCalculation
+
+  def computeFluxMap(self,eltId,eltData,parentId,parentData):
+    groupList = self.getChildrenId(eltId)
+    self.c = []
+    fluxMapList = []
+    for gElt in groupList:
+      groupNumber = self.GetItemText(gElt)
+      gData = self.getChildData(gElt,'FLUX-INTG')
+      fluxMapList.append(gData.content)
+    gNb = 0
+    nx = 60
+    ny = 60
+    nz = 29
+    # for each energy group
+    for fluxMap in fluxMapList:
+      gNb+=1
+      groupNumber = '%d' % gNb
+      gROOT.Reset()
+      c = TCanvas(groupNumber,'2D Histograms of group '+groupNumber+' (FLUX-INTG)',0,0,700,600)
+      histFlux = TH2F(groupNumber,'Flux of group '+groupNumber,nx,-nx/2,nx/2,ny,-ny/2,ny/2)
+      histFlux.GetXaxis().SetTitle("X axis title")
+      histFlux.GetXaxis().SetDecimals(ROOT.kTRUE)
+      histFlux.GetYaxis().SetTitle("Y axis title")
+      for n in range(nx*ny):
+        x = n/nx-(nx+1)/2
+        y = n%ny-(ny+1)/2
+        z = float(fluxMap[(nz-1)*nx*ny + n])
+        histFlux.Fill(int(x),int(y),z)
+      histFlux.DrawCopy('LEGO2')
+      ROOT.gStyle.SetPalette(1)
+      c.Update()
+      self.c.append(c)
+    # for group 1 over group 2
+    gROOT.Reset()
+    c = TCanvas('ratio','2D Histograms of group 1 over group 2 ratio (FLUX-INTG)',0,0,700,600)
+    histFlux = TH2F('ratio','Flux ratio',nx,-nx/2,nx/2,ny,-ny/2,ny/2)
+    histFlux.GetXaxis().SetTitle("X axis title")
+    histFlux.GetYaxis().SetTitle("Y axis title")
+    for n in range(nx*ny):
+      x = n/nx-(nx+1)/2
+      y = n%ny-(ny+1)/2
+      z = float(fluxMapList[0][(nz-1)*nx*ny + n])/float(fluxMapList[1][(nz-1)*nx*ny + n])
+      histFlux.Fill(x,y,z)
+    histFlux.DrawCopy('LEGO2')
+    ROOT.gStyle.SetPalette(1)
+    c.Update()
+    self.c.append(c)
+
+  def ConstructAsciiTree(self,elementList):
+    root = self.GetRootItem()
+    for e in elementList:
+      if e.level == 1:
+        parent = self.AppendItem(root, e.label, data=wx.TreeItemData(e))
+        self.AddAsciiChildren(elementList,e,parent)
+        self.SortChildren(parent)
+        self.Expand(parent)
+    self.SortChildren(root)
+    self.Expand(root)
+
+  def AddAsciiChildren(self,elementList, e, parent):
+    parentLevel = e.level
+    i = e.id + 1
+    nextLevel = parentLevel+1
+    imax = len(elementList)
+    while abs(nextLevel) > parentLevel and i<imax:
+      nextElt = elementList[i]
+      nextLevel = nextElt.level
+      if nextLevel == parentLevel + 1:
+        node = self.AppendItem(parent, nextElt.label, data=wx.TreeItemData(nextElt))
+        self.AddAsciiChildren(elementList,elementList[i], node)
+        self.SortChildren(node)
+        if self.GetChildrenCount(node) < 10:
+          self.Expand(node)
+      i=i+1

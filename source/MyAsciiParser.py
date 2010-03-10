@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# -*- coding: UTF-8 -*-
+# -*- coding: utf-8 -*-
 
 # author : Benjamin Toueg
 # date : 24/11/09
@@ -19,11 +19,9 @@ class LinkedListElement:
   def printIt(self):
     print self.id,self.level,self.labelType,self.label,self.contentType,self.content
 
-def asciiToElementList(file):
-  # we make the file a 1 line string and we split it according to <- and ->
-  inputfile=open(file)
-  #readablefile=inputfile.read().replace(' 4\n',' 4 \n').replace('\n','').split('->')
-  readablefile=inputfile.read().split('->')
+def asciiToElementListVersion4(readablefile):
+  #readablefile=readablefile.replace(' 4\n',' 4 \n').replace('\n','').split('->')
+  readablefile=readablefile.split('->')
 
   elementList=[]
   id = 0
@@ -67,6 +65,62 @@ def asciiToElementList(file):
         elementList.append(element)
         id=id+1
   return elementList
+
+def asciiToElementListVersion3(readablefile):
+  readablefile=readablefile.replace('\n','')
+  def readNodeHeader(string):
+    header = string[0:38]
+    string = string[38:]
+    level = int(header[0:8])
+    label = header[9:21]
+    contentType = int(header[22:30])
+    contentSize = int(header[30:38])
+    return string, level, label, contentType, contentSize
+
+  def readNodeContent(string,contentType,contentSize):
+    if contentType==0:
+      length = 0
+      content = []
+    elif contentType==1:
+      length = contentSize*10
+      content = string[0:length].split()
+    elif contentType==2:
+      length = contentSize*16
+      content = string[0:length].split()
+    elif contentType==3:
+      length = contentSize
+      raw_content = string[0:length]
+      content = []
+      step = fancyStep(raw_content)
+      if step == 0:
+        content = raw_content.split()
+      else:
+        while raw_content != '':
+          content.append(raw_content[0:step].strip())
+          raw_content = raw_content[step:]
+    else:
+      pass
+    string = string[length:]
+    return string, content
+
+  elementList=[]
+  id = 0
+  while readablefile!='':
+    readablefile, level, label, contentType, contentSize = readNodeHeader(readablefile)
+    readablefile, content = readNodeContent(readablefile,contentType, contentSize)
+    element = LinkedListElement(id,level,'12',label,contentType,content)
+    elementList.append(element)
+    id=id+1
+  return elementList
+
+def asciiToElementList(file):
+  # we make the file a 1 line string and we split it according to <- and ->
+  inputfile=open(file)
+  readablefile=inputfile.read()
+  if readablefile[0]=='-':
+    return asciiToElementListVersion4(readablefile)
+  else:
+    return asciiToElementListVersion3(readablefile)
 
 def asciiToTree(file,tree):
   # we make the file a 1 line string and we split it according to <- and ->
@@ -204,7 +258,7 @@ if __name__ == "__main__":
     file = sys.argv[1]
   except:
     file="/home/toueg/etudes/GR514/GR514_branch0.saMCPO"
-  elementList=asciiToElementList(file)
+  elementList=asciiToElementList2(file)
   for e in elementList:
     if e.level < 2:
       e.printIt()

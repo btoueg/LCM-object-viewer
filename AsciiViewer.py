@@ -178,9 +178,9 @@ class MainWindow(wx.Frame):
     filedlg.Destroy()
 
   def OpenFile(self,file):
-    filePath = os.path.expanduser(file)
+    filePath = os.path.abspath(file)
     if not(os.path.isfile(filePath)):
-      self.SetStatusText("Warning : "+filePath+" is not a file")
+      self.SetStatusText("Warning : "+filePath+" does not exist or is not a file")
       return
     self.SetStatusText("Loading "+filePath+" ...")
     self.Update()
@@ -194,7 +194,7 @@ class MainWindow(wx.Frame):
     self.tree.SetFocus()
 
   def OnAbout(self, event):
-    dlg = wx.MessageDialog(self, "Author : Benjamin Toueg\nDate : 01/12/2009","About Me", wx.OK | wx.ICON_INFORMATION)
+    dlg = wx.MessageDialog(self, "Author : Benjamin Toueg\nDate : 01/12/2009\nSource : http://code.google.com/p/dragon-donjon-ascii-viewer/","About Me", wx.OK | wx.ICON_INFORMATION)
     dlg.ShowModal()
     dlg.Destroy()
 
@@ -350,7 +350,7 @@ class MySplashScreen(wx.SplashScreen):
     try:
       file = sys.argv[1]
     except IndexError:
-      file = './MultiCompo'
+      file = sys.path[0]+'/MultiCompo'
     frame.OpenFile(file)
     self.Hide()
     frame.Show(True)

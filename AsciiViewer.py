@@ -21,7 +21,7 @@ from MyTreeCtrl import MyTreeCtrl
 from MyMenuBar import *
 from MyCalculation import MyCalculation
 from MyFilterPanel import MyFilterPanel
-from MyTable import MyTableColumn
+from MyTable import MyTableColumn, MySummaryTable
 from MyFindReplaceDialog import MyFindReplaceDialog
 
 ID_BUTTON = 100
@@ -302,13 +302,17 @@ class MainWindow(wx.Frame):
       self.sheet.SetTable(eltData.table)
       self.sheet.autosizeRowLabel()
       self.sheet.resetSize()
-      # without table controler
-      #self.sheet.SetNumberRows(len(eltData.content))
-      #self.sheet.SetNumberCols(1)
-      #self.sheet.SetColLabelValue(0,eltData.label)
-      #self.sheet.pasteCol(0,0,eltData.content)
       if eltData.contentType == 1:
         self.sheet.SetColFormatNumber(0)
+    elif self.tree.ItemHasChildren(eltId):
+      if eltData.table == None:
+        eltData.table = MySummaryTable(self.tree.getSummary(eltId))
+      self.sheet.SetTable(eltData.table)
+      self.sheet.autosizeRowLabel()
+      self.sheet.resetSize()
+      self.sheet.setColFormat(eltData.table.summary)
+      self.rightPanel.Show()
+      self.filterPanel.Hide()
     else:
       self.rightPanel.Hide()
       self.filterPanel.Hide()
@@ -350,7 +354,7 @@ class MySplashScreen(wx.SplashScreen):
     try:
       file = sys.argv[1]
     except IndexError:
-      file = sys.path[0]+'/MultiCompo'
+      file = sys.path[0]+'/example/MultiCompoV4'
     frame.OpenFile(file)
     self.Hide()
     frame.Show(True)

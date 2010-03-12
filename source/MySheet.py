@@ -24,6 +24,11 @@ class MySheet(sheet.CSheet):
       nDigits = len(str(self.GetNumberRows()))
       self.SetRowLabelSize((nDigits+1)*self.pointSize)
 
+    def setColFormat(self,summary):
+      for i,(label,contentType,content) in enumerate(summary):
+        if contentType == 1:
+          self.SetColFormatNumber(i)
+
     def SetNumberRows(self,nrow):
       super(MySheet,self).SetNumberRows(nrow)
       self.autosizeRowLabel()

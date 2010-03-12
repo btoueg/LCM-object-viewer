@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from operator import isSequenceType
+
 import wx
 
 import MyAsciiParser
@@ -114,8 +116,11 @@ class MyTreeCtrl(wx.TreeCtrl):
             #break
     #return search
 
-  def getChildId(self,parent,childText):
+#----------------------------------------------------------------------#
+
+  def getChildIdAndData(self,parent,childText):
     childId = None
+    childData = None
     nc = self.GetChildrenCount(parent,False)
 
     def GetFirstChild(parent, cookie):
@@ -128,11 +133,23 @@ class MyTreeCtrl(wx.TreeCtrl):
       GetChild = self.GetNextChild
       if self.GetItemText(child) == childText:
         childId = child
+        childData = self.GetPyData(child)
         break
+    return childId,childData
+
+  def getChildId(self,parent,childText):
+    childId,childData = self.getChildIdAndData(parent,childText)
     return childId
 
-  def getChildrenId(self,parent):
-    ChildrenId = []
+  def getChildData(self,parent,childText):
+    childId,childData = self.getChildIdAndData(parent,childText)
+    return childData
+
+#----------------------------------------------------------------------#
+
+  def getChildrenIdAndData(self,parent):
+    childrenId = []
+    childrenData = []
     nc = self.GetChildrenCount(parent,False)
 
     def GetFirstChild(parent, cookie):
@@ -143,40 +160,19 @@ class MyTreeCtrl(wx.TreeCtrl):
     for i in range(nc):
       child, cookie = GetChild(parent, cookie)
       GetChild = self.GetNextChild
-      ChildrenId.append(child)
-    return ChildrenId
+      childrenId.append(child)
+      childrenData.append(self.GetPyData(child))
+    return childrenId,childrenData
 
-  def getChildData(self,parent,childText):
-    childData = None
-    nc = self.GetChildrenCount(parent,False)
-
-    def GetFirstChild(parent, cookie):
-        return self.GetFirstChild(parent)
-
-    GetChild = GetFirstChild
-    cookie = 1
-    for i in range(nc):
-        child, cookie = GetChild(parent, cookie)
-        GetChild = self.GetNextChild
-	if self.GetItemText(child) == childText:
-	    childData = self.GetPyData(child)
-	    break
-    return childData
+  def getChildrenId(self,parent):
+    childrenId,childrenData = self.getChildrenIdAndData(parent)
+    return childrenId
 
   def getChildrenData(self,parent):
-    childrenData = []
-    nc = self.GetChildrenCount(parent,False)
-
-    def GetFirstChild(parent, cookie):
-        return self.GetFirstChild(parent)
-
-    GetChild = GetFirstChild
-    cookie = 1
-    for i in range(nc):
-        child, cookie = GetChild(parent, cookie)
-        GetChild = self.GetNextChild
-	childrenData.append(self.GetPyData(child))
+    childrenId,childrenData = self.getChildrenIdAndData(parent)
     return childrenData
+
+#----------------------------------------------------------------------#
 
   def expandAllChildren(self,parent):
     nc = self.GetChildrenCount(parent,False)
@@ -250,6 +246,18 @@ class MyTreeCtrl(wx.TreeCtrl):
     #MyAsciiParser.asciiToTree(file,self) # this method has been implemented last, and is a bit faster
     elementList = MyAsciiParser.asciiToElementList(file)
     self.ConstructAsciiTree(elementList)
+  
+  def getSummary(self,eltId):
+    # getSummary aims to give a view of the first rank children, if relevant
+    # returns a list of couples (string,list of strings)
+    summary = []
+    childrenId,childrenData = self.getChildrenIdAndData(eltId)
+    for i,nodeId in enumerate(childrenId):
+      if isSequenceType(childrenData[i].content) and childrenData[i].content != []:
+        summary.append( (self.GetItemText(nodeId),childrenData[i].contentType,childrenData[i].content) )
+      else:
+        summary.append( (self.GetItemText(nodeId),3,["Directory"]) )
+    return summary
 
   def computeMulticompoCalculation(self,eltId,eltData,parentId,parentData):
     nameDirId = self.GetItemParent(self.GetItemParent(self.GetItemParent(eltId)))

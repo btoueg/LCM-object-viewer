@@ -21,8 +21,9 @@ class LinkedListElement:
 
 def asciiToElementListVersion4(readablefile):
   #readablefile=readablefile.replace(' 4\n',' 4 \n').replace('\n','').split('->')
+  print 'reading file...'
   readablefile=readablefile.split('->')
-
+  print 'organizing data...'
   elementList=[]
   id = 0
   for r in readablefile:
@@ -39,33 +40,61 @@ def asciiToElementListVersion4(readablefile):
       contentSize = int(pos_key[0][3])
       # process the right part <-
       if labelType != 0:
+	# get rid of the spaces between <- and the string label
         pos_key[1] = pos_key[1].lstrip()
       label = pos_key[1][0:12].strip()
-      pos_key[1] = pos_key[1][13:]
-      pos_key[1] = pos_key[1].lstrip(' ')
-      pos_key[1] = pos_key[1].replace('\n','')
       if contentSize!=0:
-        if contentType==3:
-          pos_key[1]=pos_key[1][10*contentSize:]
-          pos_key[1]=pos_key[1].replace('\n','')
-          step = fancyStep(pos_key[1])
-          content = []
-          if step == 0:
-            content = pos_key[1].split()
-          else:
-            while pos_key[1] != '':
-              content.append(pos_key[1][0:step].strip())
-              pos_key[1] = pos_key[1][step:]
-        else:
-          content=None
-          if contentSize>0:
-            content=pos_key[1].split()
-        # create a LinkedListElement
-        element = LinkedListElement(id,level,labelType,label,contentType,content)
-        elementList.append(element)
-        id=id+1
+	content = Content(contentType,contentSize,pos_key[1],False)
+	element = LinkedListElement(id,level,labelType,label,contentType,content)
+	elementList.append(element)
+	id=id+1
+  print 'building tree...'
   return elementList
 
+def getContent(contentType,contentSize,rhs):
+  rhs = rhs[13:]
+  rhs = rhs.lstrip(' ')
+  rhs = rhs.replace('\n','')
+  if contentType==3:
+    rhs=rhs[10*contentSize:]
+    rhs=rhs.replace('\n','')
+    step = fancyStep(rhs)
+    content = []
+    if step == 0:
+      content = rhs.split()
+    else:
+      while rhs != '':
+	content.append(rhs[0:step].strip())
+	rhs = rhs[step:]
+  else:
+    content=None
+    if contentSize>0:
+      content=rhs.split()
+  return content
+
+class Content:
+  def __init__(self,contentType,contentSize,content,bProcess):
+    self.contentType = contentType
+    self.contentSize = contentSize
+    self.content = content
+    self.processed = False
+    if bProcess:
+      self.process()
+    
+  def process(self):
+    if not(self.processed):
+      self.content = getContent(self.contentType,self.contentSize,self.content)
+    self.processed = True
+    return True
+    
+  def getContent(self):
+    self.process()
+    return self.content
+  
+  def setContent(self,content):
+    self.content=content
+    self.processed = True
+  
 def asciiToElementListVersion3(readablefile):
   readablefile=readablefile.replace('\n','')
   def readNodeHeader(string):
@@ -108,6 +137,8 @@ def asciiToElementListVersion3(readablefile):
   while readablefile!='':
     readablefile, level, label, contentType, contentSize = readNodeHeader(readablefile)
     readablefile, content = readNodeContent(readablefile,contentType, contentSize)
+    content = Content(contentType,contentSize,content,False)
+    content.processed = True
     element = LinkedListElement(id,level,'12',label,contentType,content)
     elementList.append(element)
     id=id+1

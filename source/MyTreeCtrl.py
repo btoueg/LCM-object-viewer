@@ -253,8 +253,9 @@ class MyTreeCtrl(wx.TreeCtrl):
     summary = []
     childrenId,childrenData = self.getChildrenIdAndData(eltId)
     for i,nodeId in enumerate(childrenId):
-      if isSequenceType(childrenData[i].content) and childrenData[i].content != []:
-        summary.append( (self.GetItemText(nodeId),childrenData[i].contentType,childrenData[i].content) )
+      content = childrenData[i].content.getContent()
+      if isSequenceType(content) and content != []:
+        summary.append( (self.GetItemText(nodeId),childrenData[i].contentType,content) )
       else:
         summary.append( (self.GetItemText(nodeId),3,["Directory"]) )
     return summary
@@ -271,12 +272,12 @@ class MyTreeCtrl(wx.TreeCtrl):
     eltDataArbval = self.getChildData(eltDataTreeId, "ARBVAL")
     eltDataNvp = self.getChildData(eltDataTreeId, "NVP")
     eltDataNcals = self.getChildData(eltDataTreeId, "NCALS")
-    ngroup = int(eltDataStateVector.content[1])
-    nvp = int(eltDataNvp.content[0])
-    nptot = len(eltParkey.content)
-    ncals = int(eltDataNcals.content[0])
-    debarb = eltDataDebarb.content
-    arbval = eltDataArbval.content
+    ngroup = int(eltDataStateVector.content.getContent()[1])
+    nvp = int(eltDataNvp.content.getContent()[0])
+    nptot = len(eltParkey.content.getContent())
+    ncals = int(eltDataNcals.content.getContent()[0])
+    debarb = eltDataDebarb.content.getContent()
+    arbval = eltDataArbval.content.getContent()
     myCalculation = MyCalculation(ngroup)
     for cId in calcIdList:
       c = self.GetPyData(cId)
@@ -292,22 +293,22 @@ class MyTreeCtrl(wx.TreeCtrl):
       typeData = self.getChildData(cId, "ISOTOPESTYPE")
       usedData = self.getChildData(cId, "ISOTOPESUSED")
       volData  = self.getChildData(cId, "ISOTOPESVOL")
-      microLib = MyMicroLib(stateVector.content, nameData.content, densData.content, tempData.content, todoData.content, typeData.content, usedData.content, volData.content)
+      microLib = MyMicroLib(stateVector.content.getContent(), nameData.content.getContent(), densData.content.getContent(), tempData.content.getContent(), todoData.content.getContent(), typeData.content.getContent(), usedData.content.getContent(), volData.content.getContent())
       for isotope in microLib.isotopeRname:
         eltIsoId = self.getChildId(cId, isotope)
         eltXSList   = self.getChildrenData(eltIsoId)
         microLib.addIsotope(isotope,eltXSList)
       myCalculation.addCalc(muplet,microLib)
     pvalList=[]
-    for i in range(len(eltParkey.content)):
+    for i in range(len(eltParkey.content.getContent())):
       pvali = "pval%08d" % (i+1)
       eltPvali    = self.getChildData(eltGlobalId,pvali)
-      pvalList.append(eltPvali.content)
-    myCalculation.setParkey(eltParkey.content)
+      pvalList.append(eltPvali.content.getContent())
+    myCalculation.setParkey(eltParkey.content.getContent())
     myCalculation.setPvalList(pvalList)
     myCalculation.initializeOnceFilled()
     #myCalculation.computeDiffFromSTRD()
-    eltData.content = myCalculation
+    eltData.content.setContent(myCalculation)
 
   def computeEditionRefcase(self,eltId,eltData,parentId,parentData):
     isotopeNameList = self.getChildData(eltId, "ISOTOPERNAME").content
@@ -440,6 +441,12 @@ class MyTreeCtrl(wx.TreeCtrl):
     ROOT.gStyle.SetPalette(1)
     c.Update()
     self.c.append(c)
+
+  def SortChildren(self,item):
+    pass
+
+  def Expand(self,item):
+    pass
 
   def ConstructAsciiTree(self,elementList):
     root = self.GetRootItem()

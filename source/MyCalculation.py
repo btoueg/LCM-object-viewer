@@ -47,14 +47,14 @@ class MyMicroLib:
           njjLabel  = 'NJJS%02d' % l
           scatLabel = 'SCAT%02d' % l
           if xs.label == ijjLabel:
-            ijj[l]=xs.content
+            ijj[l]=xs.content.getContent()
           elif xs.label == njjLabel:
-            njj[l]=xs.content
+            njj[l]=xs.content.getContent()
           elif xs.label == scatLabel:
-            scat[l]=xs.content
+            scat[l]=xs.content.getContent()
       else:
     # simply store regular XS
-        xsStorage[xs.label] = xs.content
+        xsStorage[xs.label] = xs.content.getContent()
     # check consistency
     if ijj.count([])>0 or njj.count([])>0 :
       raise AssertionError('Problem with anisotropy order')

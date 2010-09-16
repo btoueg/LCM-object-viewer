@@ -12,6 +12,7 @@ except ImportError:
     raise ImportError,"The wxPython module is required to run this program"
 
 import os,sys,time
+from operator import isSequenceType
 
 sys.path.append(sys.path[0]+'/source')
 
@@ -209,7 +210,7 @@ class MainWindow(wx.Frame):
     self.rightPanel.Show()
     self.filterPanel.Show()
     self.filterPanel.clear()
-    myCalculation = eltData.content
+    myCalculation = eltData.content.getContent()
     self.filterPanel.setComboBoxes(myCalculation.getComboBoxesList())
     self.filterPanel.initialize2()
     self.filterPanel.bind(myCalculation.OnApplyFilter)
@@ -261,13 +262,17 @@ class MainWindow(wx.Frame):
     eltDataContent = None
     if eltId != self.tree.GetRootItem():
       eltDataLabel = eltData.label
-      eltDataContent = eltData.content
+      eltDataContentObject = eltData.content
+      if isSequenceType(eltDataContentObject):
+	eltDataContent = eltDataContentObject
+      else:
+	eltDataContent = eltDataContentObject.getContent()
 
-    if eltDataLabel == "CALCULATIONS" and eltData.content != []:
+    if eltDataLabel == "CALCULATIONS" and eltDataContent != []:
       # second time a calculation node is selected
       self.OnMyCalculation(eltData)
       self.Bind(wx.EVT_BUTTON, self.OnClickedCalculation)
-    elif eltDataLabel == 'CALCULATIONS' and eltData.content == []:
+    elif eltDataLabel == 'CALCULATIONS' and eltDataContent == []:
       # first time a calculation node is selected
       self.tree.computeMulticompoCalculation(eltId,eltData,parentId,parentData)
       self.OnSelChanged(evt,False)
@@ -293,12 +298,12 @@ class MainWindow(wx.Frame):
       if reactionRate:
         self.tree.computeReactionRate(eltId,eltData,parentId,parentData)
       #self.tree.computeFluxMap(eltId,eltData,parentId,parentData)
-    elif eltDataContent!= None and len(eltData.content)>0:
+    elif eltDataContent!= None and len(eltDataContent)>0:
       self.rightPanel.Show()
       self.filterPanel.Hide()
       # with table controler
       if eltData.table == None:
-        eltData.table = MyTableColumn(eltData.label,eltData.content)
+        eltData.table = MyTableColumn(eltData.label,eltDataContent)
       self.sheet.SetTable(eltData.table)
       self.sheet.autosizeRowLabel()
       self.sheet.resetSize()

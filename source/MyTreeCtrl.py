@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-import sys,ConfigParser
+import os,sys,ConfigParser
 from operator import isSequenceType
 
 import wx
@@ -244,7 +244,7 @@ class MyTreeCtrl(wx.TreeCtrl):
 
   def recoverAsciiFile(self,file):
     config = ConfigParser.RawConfigParser()
-    config.read(sys.path[0]+'/config.cfg')
+    config.read(os.path.expanduser('~/.asciiviewer.cfg'))
     sort = config.getboolean('mainconfig', 'sort')
     expand = config.getboolean('mainconfig', 'expand')
     def fPass(item):

@@ -193,10 +193,10 @@ class MainWindow(wx.Frame):
     # save last opened file in configuration file
     import ConfigParser
     config = ConfigParser.RawConfigParser()
-    config.read(sys.path[0]+'/config.cfg')
+    config.read(os.path.expanduser('~/.asciiviewer.cfg'))
     config.set('mainconfig', 'lastfile', filePath)
     # Writing our configuration file to 'config.cfg'
-    config.write(open(sys.path[0]+'/config.cfg', 'wb'))
+    config.write(open(os.path.expanduser('~/.asciiviewer.cfg'), 'wb'))
     self.Update()
     self.tree.bind(self)
     self.tree.SetFocus()
@@ -373,7 +373,7 @@ class MyApp(wx.App):
   def OnInit(self):
     import ConfigParser
     config = ConfigParser.RawConfigParser()
-    config.read(sys.path[0]+'/config.cfg')
+    config.read(os.path.expanduser('~/.asciiviewer.cfg'))
     splash = config.getboolean('mainconfig', 'splash')
     if splash:
       MySplash = MySplashScreen(None, self.LaunchMainWindow)
@@ -395,7 +395,7 @@ if __name__ == "__main__":
   # read the configuration file config.cfg
   import ConfigParser
   config = ConfigParser.RawConfigParser()
-  configFilePath = sys.path[0]+'/config.cfg'
+  configFilePath = os.path.expanduser('~/.asciiviewer.cfg')
   if not(os.path.isfile(configFilePath)):
     # if config.cfg does not exist, create if from default.cfg
     config.read(sys.path[0]+'/default.cfg')

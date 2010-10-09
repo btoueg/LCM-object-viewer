@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import sys,ConfigParser
 from operator import isSequenceType
 
 import wx
@@ -242,10 +243,24 @@ class MyTreeCtrl(wx.TreeCtrl):
     return lastVisibleChild
 
   def recoverAsciiFile(self,file):
+    config = ConfigParser.RawConfigParser()
+    config.read(sys.path[0]+'/config.cfg')
+    sort = config.getboolean('mainconfig', 'sort')
+    expand = config.getboolean('mainconfig', 'expand')
+    def fPass(item):
+      pass
+    if sort:
+      fSort = self.SortChildren
+    else:
+      fSort = fPass
+    if expand:
+      fExpand = self.Expand
+    else:
+      fExpand = fPass
     root = self.AddRoot(file)
     #MyAsciiParser.asciiToTree(file,self) # this method has been implemented last, and is a bit faster
     elementList = MyAsciiParser.asciiToElementList(file)
-    self.ConstructAsciiTree(elementList)
+    self.ConstructAsciiTree(elementList,fExpand,fSort)
   
   def getSummary(self,eltId):
     # getSummary aims to give a view of the first rank children, if relevant
@@ -442,24 +457,18 @@ class MyTreeCtrl(wx.TreeCtrl):
     c.Update()
     self.c.append(c)
 
-  def SortChildren(self,item):
-    pass
-
-  def Expand(self,item):
-    pass
-
-  def ConstructAsciiTree(self,elementList):
+  def ConstructAsciiTree(self,elementList,fExpand,fSort):
     root = self.GetRootItem()
     for e in elementList:
       if e.level == 1:
         parent = self.AppendItem(root, e.label, data=wx.TreeItemData(e))
-        self.AddAsciiChildren(elementList,e,parent)
-        self.SortChildren(parent)
-        self.Expand(parent)
-    self.SortChildren(root)
-    self.Expand(root)
+        self.AddAsciiChildren(elementList,e,parent,fExpand,fSort)
+        fSort(parent)
+        fExpand(parent)
+    fSort(root)
+    fExpand(root)
 
-  def AddAsciiChildren(self,elementList, e, parent):
+  def AddAsciiChildren(self,elementList, e, parent,fExpand,fSort):
     parentLevel = e.level
     i = e.id + 1
     nextLevel = parentLevel+1
@@ -469,8 +478,8 @@ class MyTreeCtrl(wx.TreeCtrl):
       nextLevel = nextElt.level
       if nextLevel == parentLevel + 1:
         node = self.AppendItem(parent, nextElt.label, data=wx.TreeItemData(nextElt))
-        self.AddAsciiChildren(elementList,elementList[i], node)
-        self.SortChildren(node)
+        self.AddAsciiChildren(elementList,elementList[i], node, fExpand, fSort)
+        fSort(node)
         if self.GetChildrenCount(node) < 10:
-          self.Expand(node)
+          fExpand(node)
       i=i+1

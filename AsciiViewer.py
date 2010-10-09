@@ -190,6 +190,13 @@ class MainWindow(wx.Frame):
     end = time.time()
     elapsed = end - start
     self.SetStatusText(filePath+" loaded in "+str(elapsed)+"s")
+    # save last opened file in configuration file
+    import ConfigParser
+    config = ConfigParser.RawConfigParser()
+    config.read(sys.path[0]+'/config.cfg')
+    config.set('mainconfig', 'lastfile', filePath)
+    # Writing our configuration file to 'config.cfg'
+    config.write(open(sys.path[0]+'/config.cfg', 'wb'))
     self.Update()
     self.tree.bind(self)
     self.tree.SetFocus()
@@ -339,44 +346,69 @@ class MySplashScreen(wx.SplashScreen):
   """
   Create a splash screen widget.
   """
-  def __init__(self, parent=None):
-    # This is a recipe to a the screen.
-    # Modify the following variables as necessary.
+  def __init__(self, parent, appLauncher):
+    self.appLauncher = appLauncher
     aBitmap = wx.Image(name = sys.path[0]+'/splash.jpg').ConvertToBitmap()
     splashStyle = wx.SPLASH_CENTRE_ON_SCREEN | wx.SPLASH_TIMEOUT
     splashDuration = 1000 # milliseconds
     # Call the constructor with the above arguments in exactly the
     # following order.
-    wx.SplashScreen.__init__(self, aBitmap, splashStyle,
-                              splashDuration, parent)
+    wx.SplashScreen.__init__(self, aBitmap, splashStyle, splashDuration, parent)
     self.Bind(wx.EVT_CLOSE, self.OnExit)
     wx.Yield()
 
   def OnExit(self, evt):
-    # MainWindow is the main frame.
-    frame = MainWindow(None,-1,'The DRAGON multicompo viewer')
-    app.SetTopWindow(frame)
-    try:
-      file = sys.argv[1]
-    except IndexError:
-      file = sys.path[0]+'/example/MultiCompoV4'
-    frame.OpenFile(file)
+    self.appLauncher()
     self.Hide()
-    frame.Show(True)
     # The program will freeze without this line.
     evt.Skip()  # Make sure the default handler runs too...
 
 #----------------------------------------------------------------------#
 
 class MyApp(wx.App):
-  def OnInit(self):
-      MySplash = MySplashScreen()
-      MySplash.Show()
+  def __init__(self,file):
+    self.file = file
+    wx.App.__init__(self)
 
-      return True
+  def OnInit(self):
+    import ConfigParser
+    config = ConfigParser.RawConfigParser()
+    config.read(sys.path[0]+'/config.cfg')
+    splash = config.getboolean('mainconfig', 'splash')
+    if splash:
+      MySplash = MySplashScreen(None, self.LaunchMainWindow)
+      MySplash.Show()
+    else:
+      self.LaunchMainWindow()
+    return True
+
+  def LaunchMainWindow(self):
+    # MainWindow is the main frame.
+    frame = MainWindow(None,-1,'The DRAGON multicompo viewer')
+    #app.SetTopWindow(frame)
+    frame.OpenFile(self.file)
+    frame.Show(True)
 
 #----------------------------------------------------------------------#
 
 if __name__ == "__main__":
-  app = MyApp()
+  # read the configuration file config.cfg
+  import ConfigParser
+  config = ConfigParser.RawConfigParser()
+  configFilePath = sys.path[0]+'/config.cfg'
+  if not(os.path.isfile(configFilePath)):
+    # if config.cfg does not exist, create if from default.cfg
+    config.read(sys.path[0]+'/default.cfg')
+    config.write(open(configFilePath, 'wb'))
+  config.read(configFilePath)
+  # get last opened file from config.cfg, otherwise use example file
+  lastfile = config.get('mainconfig', 'lastfile')
+  try:
+    lastfile = sys.argv[1]
+  except IndexError:
+    if lastfile == '':
+      lastfile = sys.path[0]+'/example/MultiCompoV4'
+  # launch main window
+  app = MyApp(lastfile)
   app.MainLoop()
+  

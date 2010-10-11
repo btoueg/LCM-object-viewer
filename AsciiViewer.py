@@ -399,7 +399,8 @@ if __name__ == "__main__":
   if not(os.path.isfile(configFilePath)):
     # if config.cfg does not exist, create if from default.cfg
     config.read(sys.path[0]+'/default.cfg')
-    config.write(open(configFilePath, 'wb'))
+    with open(configFilePath, 'wb') as configFile:
+      config.write(configFile)
   config.read(configFilePath)
   # get last opened file from config.cfg, otherwise use example file
   lastfile = config.get('mainconfig', 'lastfile')

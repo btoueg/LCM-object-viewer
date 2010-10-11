@@ -146,8 +146,8 @@ def asciiToElementListVersion3(readablefile):
 
 def asciiToElementList(file):
   # we make the file a 1 line string and we split it according to <- and ->
-  inputfile=open(file)
-  readablefile=inputfile.read()
+  with open(file) as inputfile:
+    readablefile=inputfile.read()
   if readablefile[0]=='-':
     # if the file begins with "->" it's a Version4 file 
     return asciiToElementListVersion4(readablefile)
@@ -158,9 +158,9 @@ def asciiToTree(file,tree):
   # this function was designed to be a faster alternative to asciiToElementList and then ConstructAsciiTree
   # but it's not that fast
   # we make the file a 1 line string and we split it according to <- and ->
-  inputfile=open(file)
-  #readablefile=inputfile.read().replace(' 4\n',' 4 \n').replace('\n','').split('->')
-  readablefile=inputfile.read().split('->')
+  with open(file) as inputfile:
+    #readablefile=inputfile.read().replace(' 4\n',' 4 \n').replace('\n','').split('->')
+    readablefile=inputfile.read().split('->')
 
   #elementList=[]
   previousLevel = 0

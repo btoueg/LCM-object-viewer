@@ -272,7 +272,6 @@ def xsmrep(namt, ind, idir, my_block2):
   *
   *-----------------------------------------------------------------------
   """
-  nomsub="xsmrep"
   i = ipos = ipos2 = irc = irc2 = istart = 0
   namp = nomC = ""
   if my_block2.idir != idir:
@@ -282,7 +281,7 @@ def xsmrep(namt, ind, idir, my_block2):
     my_block2.idir = idir
     xsmdir(1, my_block2)
   if namt == "***HANDLE***":
-    raise Exception
+    raise AssertionError("***HANDLE*** IS A RESERVED KEYWORD.")
   namp = namt
   if namp == " ":
     namp = "***HANDLE***"
@@ -293,7 +292,7 @@ def xsmrep(namt, ind, idir, my_block2):
     pass # goto L50
   if namp in my_block2.cmt:
     # THE BLOCK ALREADY EXISTS
-    return
+    return my_block2.cmt.index(namp)+1
   # THE BLOCK NAMP DOES NOT EXISTS IN THE ACTIVE DIRECTORY EXTENT. WE
   # SEARCH IN OTHER EXTENTS THAT BELONG TO THE ACTIVE DIRECTORY.
   if (my_block2.idir != my_block2.link):
@@ -308,7 +307,7 @@ def xsmrep(namt, ind, idir, my_block2):
 	ipos = my_block2.idir
       if namp in my_block2.cmt:
 	# THE BLOCK NAMP WAS FOUND IN THE ACTIVE DIRECTORY EXTENT
-	return my_block2.cmt.index(namp)
+	return my_block2.cmt.index(namp)+1
       if (my_block2.link == istart):
 	break
       my_block2.idir = my_block2.link
@@ -331,18 +330,134 @@ def xsmget(iplist, namp):
   """
   nomsub="xsmget_c"
   nomC = ""
-  my_block2 = Block2()
   iii = irc = 0
   if iplist.header != 200:
-    raise Exception
+    raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
   my_block2=iplist.ibloc
   iii = xsmrep(namp, 1, iplist.idir, my_block2)
   if iii > 0:
     data2 = kdiget_c(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii])
   return data2
 
-def xsmnxt(iplist, namp):
-  
+def xsmnxt(iplist,namp = " "):
+  """
+  *-----------------------------------------------------------------------
+  *
+  * FIND THE NAME OF THE NEXT BLOCK STORED IN THE ACTIVE DIRECTORY.
+  *
+  * INPUT PARAMETERS:
+  *  IPLIST : ADDRESS OF THE HANDLE TO THE XSM FILE.
+  *    NAMP : CHARACTER*12 NAME OF A BLOCK. IF NAMP=' ' AT INPUT, FIND
+  *           ANY NAME FOR ANY BLOCK STORED IN THIS DIRECTORY.
+  *
+  * OUTPUT PARAMETERS:
+  *    NAMP : CHARACTER*12 NAME OF THE NEXT BLOCK. NAMP=' ' FOR AN EMPTY
+  *           DIRECTORY.
+  *
+  *-----------------------------------------------------------------------
+  """
+  iii = 0
+  if (iplist.header != 200):
+    raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
+  my_block2 = iplist.ibloc
+  if namp == " ":
+    if my_block2.idir != iplist.idir:
+      #SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
+      if (my_block2.modif == 1):
+	xsmdir(2, my_block2)
+      my_block2.idir = iplist.idir
+      xsmdir(1, my_block2)
+    iii = min(my_block2.nmt,1)
+  else:
+    iii = xsmrep(namp, 1, iplist.idir, my_block2)
+  if iii == 0 and namp == " ":
+    #EMPTY DIRECTORY
+    raise AssertionError("THE ACTIVE DIRECTORY '%s' OF THE XSM FILE '%s' IS EMPTY."%(my_block2.mynam,iplist.hname))
+  elif iii == 0:
+    raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,iplist.hname))
+  elif iii + 1 <= my_block2.nmt:
+    namp = my_block2.cmt[iii]
+    return namp
+  #SWITCH TO THE NEXT DIRECTORY.
+  if my_block2.idir != my_block2.link:
+    if my_block2.modif == 1:
+      xsmdir(2, my_block2)
+    my_block2.idir = my_block2.link
+    #RECOVER THE NEXT DIRECTORY.
+    xsmdir(1, my_block2)
+  namp = my_block2.cmt[0]
+  if (namp == "***HANDLE***"):
+    namp = " "
+  return namp
+
+def xsmlen(iplist, namp):
+  """
+  *-----------------------------------------------------------------------
+  *
+  * RETURN THE LENGTH AND TYPE OF A BLOCK. RETURN 0 IF THE BLOCK DOES NOT
+  * EXISTS.
+  *
+  * INPUT PARAMETERS:
+  *  IPLIST : ADDRESS OF THE HANDLE TO THE XSM FILE.
+  *   NAMP  : CHARACTER*12 NAME OF THE CURRENT BLOCK.
+  * OUTPUT PARAMETERS:
+  *   ILONG : NUMBER OF INFORMATION ELEMENTS STORED IN THE CURRENT BLOCK.
+  *           ILONG=-1 IS RETURNED FOR A SCALAR DIRECTORY.
+  *           ILONG=0 IF THE BLOCK DOES NOT EXISTS.
+  *   ITYPE : TYPE OF INFORMATION ELEMENTS STORED IN THE CURRENT BLOCK.
+  *           0: DIRECTORY                1: INTEGER
+  *           2: SINGLE PRECISION         3: CHARACTER*4
+  *           4: DOUBLE PRECISION         5: LOGICAL
+  *           6: COMPLEX                 99: UNDEFINED
+  *
+  *-----------------------------------------------------------------------
+  """
+  if (iplist.header != 200):
+    raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
+  my_block2=iplist.ibloc
+  iii = xsmrep(namp, 1, iplist.idir, my_block2)
+  if (iii > 0):
+    ilong = my_block2.jlon[iii-1]
+    itype = my_block2.jtyp[iii-1]
+  else:
+    ilong = 0
+    itype = 99
+  return ilong, itype
+
+def xsminf(iplist):
+  """
+  *-----------------------------------------------------------------------
+  *
+  * RECOVER GLOBAL INFORMATIONS RELATED TO AN XSM FILE.
+  *
+  * INPUT PARAMETERS:
+  *  IPLIST : ADDRESS OF THE HANDLE TO THE XSM FILE.
+  *
+  * OUTPUT PARAMETERS:
+  *  NAMXSM : CHARACTER*12 NAME OF THE XSM FILE.
+  *   NAMMY : CHARECTER*12 NAME OF THE ACTIVE DIRECTORY.
+  *   EMPTY : =.TRUE. IF THE ACTIVE DIRECTORY IS EMPTY.
+  *   ILONG : =-1: FOR A TABLE; >0: NUMBER OF LIST ITEMS.
+  *  ACCESS : TYPE OF ACCESS. =1: OBJECT OPEN FOR MODIFICATION;
+  *           =2: OBJECT IN READ-ONLY MODE.
+  *
+  *-----------------------------------------------------------------------
+  """
+  if (iplist.header != 200):
+    raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
+  my_block2=iplist.ibloc
+  if (my_block2.idir != iplist.idir):
+    # SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
+    if (my_block2.modif == 1):
+      xsmdir(2, my_block2)
+    my_block2.idir = iplist.idir
+    xsmdir(1, my_block2)
+  namxsm = iplist.hname
+  nammy = my_block2.mynam
+  empty = (my_block2.nmt == 0)
+  ilong = iplist.listlen
+  access = iplist.impf
+  return namxsm, nammy, empty, ilong, access
 
 if __name__ == "__main__":
   import sys
@@ -352,4 +467,41 @@ if __name__ == "__main__":
     filePath="/home/melodie/Bureau/xsm_open/XSMCPO_0004"
   iplist = xsm()
   xsmop(iplist,filePath,2)
-  print iplist
+  #if((IBASE(IPLIS1+IHEAD) != 100) and (IBASE(IPLIS1+IHEAD) != 200)):
+    #raise AssertionError('THE TABLE (IBASE(IPLIS1+IHNAM+I),I=0,2) HAS THE WRONG HEADER(1).')
+  #elif((IBASE(IPLIS2+IHEAD).NE.100) and (IBASE(IPLIS2+IHEAD).NE.200)):
+    #raise AssertionError('THE TABLE (IBASE(IPLIS2+IHNAM+I),I=0,2) HAS THE WRONG HEADER(2).')
+  #elif(IBASE(IPLIS1+ILLIST) >= 0):
+    #raise AssertionError('THE OBJECT (IBASE(IPLIS1+IHNAM+I),I=0,2) IS A LIST.')
+  maxlev = 50
+  kdata1 = [0] * maxlev
+  kdata2 = [0] * maxlev
+  kjlon = [0] * maxlev
+  ivec = [0] * maxlev
+  igo = [0] * maxlev
+  first = [""] * maxlev
+  path = [""] * maxlev
+  ilev=0
+  kdata1[ilev]=iplist
+  kdata2[ilev]=iplist
+  kjlon[ilev]=-1
+  ivec[ilev]=1
+  #ASSOCIATIVE TABLE.
+  igo[ilev]=5
+  namxsm, myname, empty, ilong, lcm = xsminf(iplist)
+  if empty:
+    print "GO TO (160,160,190,190,200),IGO(ILEV)"
+  namt = " "
+  namt = xsmnxt(iplist,namt)
+  first[ilev]=namt
+  ilong,itylcm = xsmlen(iplist,namt)
+  if ilong != 0 and itylcm == 0:
+    #ASSOCIATIVE TABLE DATA.
+    pass
+  elif ilong != 0 and itylcm == 10:
+    #LIST DATA.
+    pass
+  elif ilong != 0 and itylcm <= 6:
+    pass
+  namt = xsmnxt(iplist,namt)
+  print namt

@@ -289,10 +289,11 @@ def comupl(nvp,nptot,ical,ncals,debarb,arbval):
 if __name__ == "__main__":
   import sys
   try:
-    file = sys.argv[1]
+    myFilePath = sys.argv[1]
   except:
-    file="/home/toueg/etudes/GR514/GR514_branch0.saMCPO"
-  elementList=asciiToElementList2(file)
-  for e in elementList:
-    if e.level < 2:
-      e.printIt()
+    myFilePath="../example/MultiCompoV4"
+  with open(myFilePath) as myFile:
+    elementList=asciiToElementListVersion4(myFile.read())
+    for e in elementList:
+      if True:#e.level < 2:
+	e.printIt()

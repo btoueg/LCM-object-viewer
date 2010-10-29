@@ -4,6 +4,8 @@
 # author : Benjamin Toueg
 # date : 10/10/10
 
+from copy import copy
+
 lnword = 8
 iofmax = 30
 maxit = 100
@@ -37,7 +39,10 @@ class xsm:                # active directory resident-memory xsm structure
     s += "idir "+str(self.idir)+"\n"
     s += "ibloc\n"+str(self.ibloc)+"\n"
     s += "icang "+str(self.icang)+"\n"
-    s += "father "+str(self.father)+"\n"
+    if self.father != None:
+      s += "father "+str(self.father.ibloc.mynam)+"\n"
+    else:
+      s += "father "+str(self.father)+"\n"
     s += "icang2\n"+str(self.icang2)+"\n"
     s += "============"
     return s
@@ -114,25 +119,92 @@ def kdiget_s(myFile,iofset,length=1):
   data = []
   offset = iofset*lnword
   myFile.seek(offset)
-  for i in range(length):
+  for i in xrange(length):
     data.append(myFile.read(lnword)[:4])
   return "".join(data)
 
 from scipy.io.numpyio import fwrite, fread
 
-def kdiget_i(myFile,iofset,length=1):
+def kdiget_i(myFile,iofset,length=1, datatype = 'l'):
   data = []
   offset = iofset*lnword
   myFile.seek(offset)
-  datatype = 'i'
   size = 1
-  for i in range(length):
+  for i in xrange(length):
     read_data = fread(myFile, size, datatype)
     for rd in read_data:
       data.append(rd)
-  if length == 1:
-    data = data.pop()
+  #if length == 1:
+    #data = data.pop()
   return data
+
+#def xsmkep(ipkeep, imode, iplist):
+  #"""
+  #*-----------------------------------------------------------------------
+  #*
+  #* KEEP THE ADDRESSES OF THE OPEN ACTIVE DIRECTORIES.
+  #*
+  #* INPUT PARAMETERS:
+  #*  IPKEEP : ADDRESS OF THE DATABASE HANDLE (ALWAYS THE SAME).
+  #*  IMODE  : =1: ADD TO THE DATABASE; =2: REMOVE FROM THE DATABASE.
+  #*  IPLIST : ADDRESS OF AN ACTIVE DIRECTORY.
+  #*
+  #* OUTPUT PARAMETER:
+  #*  IPLIST : LAST ACTIVE DIRECTORY IN THE DATABASE. =0 IF THE
+  #*           DATABASE IS EMPTY.
+  #*
+  #* DATABASE HANDLE STRUCTURE:
+  #*  0 : NUMBER OF ADDRESSES IN THE DATABASE.
+  #*  1 : MAXIMUM SLOTS IN THE DATABASE.
+  #*  2 : ADDRESS OF THE DATABASE.
+  #*
+  #*-----------------------------------------------------------------------
+  #"""
+  #n = ipkeep.nad
+  #if (imode == 1):
+    #int_32 i;
+    #xsm **my_parray;
+    #if iplist.header != 200:
+      #raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
+    #elif (ipkeep.nad + 1 > ipkeep.maxad):
+      #ipkeep.maxad += maxit
+      #my_parray = (xsm **) malloc((ipkeep->maxad)*sizeof(i));
+      #for (i = 0; i < n; ++i) my_parray[i]=ipkeep->idir[i];
+      #if (n > 0):
+	#free(ipkeep.idir)
+      #ipkeep.idir=my_parray
+    #++ipkeep->nad;
+    #ipkeep.idir[n] = iplist
+  #elif (imode == 2):
+    
+    #int_32 i, i0;
+    #for (i = n; i >= 1; --i) {
+	#if (ipkeep->idir[i-1] == *iplist) {
+	  #i0 = i;
+	  #goto L30;
+	#}
+    #}
+    #sprintf(AbortString,"%s: UNABLE TO FIND AN ADDRESS.",nomsub);
+    #xabort_c(AbortString);
+  #L30:
+      #for (i = i0; i <= n-1; ++i)
+	  #ipkeep->idir[i-1]=ipkeep->idir[i];
+      #--ipkeep->nad;
+      #if (ipkeep->nad == 0) {
+	  #*iplist = NULL;
+	  #free(ipkeep->idir);
+	  #ipkeep->maxad=0;
+	  #ipkeep->idir=NULL;
+      #} else {
+	  #*iplist = ipkeep->idir[n-1];
+	  #if ((*iplist)->header != 200) {
+	    #sprintf(AbortString,"%s: WRONG HEADER(2).",nomsub);
+	    #xabort_c(AbortString);
+	  #}
+      #}
+  #else:
+    #raise AssertionError("INVALID VALUE OF IMODE.")
+  #return iplist
 
 def xsmdir(ind, my_block2):
   """
@@ -148,26 +220,21 @@ def xsmdir(ind, my_block2):
   *-----------------------------------------------------------------------
   */
   """
-  nomsub = "xsmdir"
-  i = j = irc = ibuf = ipos = iofma2 = inom = 0
-  iname = [0]*3
-  hbuf = ""
   ipos = my_block2.idir
   if ind == 1:
-    ibuf = kdiget_s(my_block2.ifile,ipos)
-    hbuf = ibuf
+    hbuf = kdiget_s(my_block2.ifile,ipos)
     if hbuf[:4] != "$$$$":
-      raise Exception
+      raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
     ipos += 1
-    iofma2 = kdiget_i(my_block2.ifile,ipos)
+    iofma2 = kdiget_i(my_block2.ifile,ipos).pop()
     ipos += 1
-    my_block2.nmt = kdiget_i(my_block2.ifile,ipos)
+    my_block2.nmt = kdiget_i(my_block2.ifile,ipos).pop()
     if my_block2.nmt > iofmax:
-      raise Exception
+      raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
     ipos += 1
-    my_block2.link = kdiget_i(my_block2.ifile,ipos)
+    my_block2.link = kdiget_i(my_block2.ifile,ipos).pop()
     ipos += 1
-    my_block2.iroot = kdiget_i(my_block2.ifile,ipos)
+    my_block2.iroot = kdiget_i(my_block2.ifile,ipos).pop()
     ipos += 1
     my_block2.mynam = kdiget_s(my_block2.ifile,ipos,3)
     if my_block2.nmt != 0:
@@ -178,11 +245,12 @@ def xsmdir(ind, my_block2):
       ipos += iofma2
       my_block2.jtyp = kdiget_i(my_block2.ifile,ipos,my_block2.nmt)
       ipos += iofma2
+      my_block2.cmt = []
       for i in xrange(my_block2.nmt):
 	my_block2.cmt.append(kdiget_s(my_block2.ifile,ipos,3))
 	ipos += iwrd
   elif ind == 2:
-    pass
+    raise AssertionError()
 
 def xsmop(iplist, namp, imp, impx = 0):
   """
@@ -218,13 +286,9 @@ def xsmop(iplist, namp, imp, impx = 0):
   * BLOCK 2 IS UNIQUE FOR A GIVEN XSM FILE; EVERY BLOCK 1 IS POINTING TO
   * THE SAME BLOCK 2.
   """
-  nomsub = "xsmop_c"
-  irc = ibuf = inom = 0
-  hbuf = ""
   my_block2 = Block2()
-  my_db1 = Db1()
-  my_db2 = Db2()
-  iplist.icang2 = my_db2
+  iplist.icang = Db1()
+  iplist.icang2 = Db2()
   iplist.header = 200
   iplist.listlen = -1
   iplist.impf = imp
@@ -232,24 +296,23 @@ def xsmop(iplist, namp, imp, impx = 0):
   iplist.father = None
   iplist.hname = namp
   my_block2.ifile = open(namp,'rb')
-  if impx > 1:
-    print "toto"
   if imp >= 1:
     # RECOVER THE ROOT DIRECTORY IF THE XSM FILE ALREADY EXISTS
-    ibuf = kdiget_s(my_block2.ifile,0)
-    hbuf = ibuf
+    hbuf = kdiget_s(my_block2.ifile,0)
     if hbuf[:4] != "$XSM":
-      raise Exception
-    my_block2.ioft = kdiget_i(my_block2.ifile,1)
-    my_block2.idir = kdiget_i(my_block2.ifile,2)
+      raise AssertionError("WRONG HEADER ON XSM FILE '%s'."%namp)
+    my_block2.ioft = kdiget_i(my_block2.ifile,1).pop()
+    my_block2.idir = kdiget_i(my_block2.ifile,2).pop()
     iplist.idir = my_block2.idir
     xsmdir(1,my_block2)
     my_block2.modif = 0
     if impx > 0:
       pass
       #print ("%s: XSM FILE RECOVERY. FILE = '%s'.\n",nomsub,namp);
-      #print ("%6s HIGHEST ATTAINABLE ADDRESS = %d\n"," ",my_block2->ioft);
-      #print ("%6s ACTIVE DIRECTORY = %s\n"," ",my_block2->mynam);
+      #print ("%6s HIGHEST ATTAINABLE ADDRESS = %d\n"," ",my_block2.ioft);
+      #print ("%6s ACTIVE DIRECTORY = %s\n"," ",my_block2.mynam);
+  else:
+    raise AssertionError()
 
 def xsmrep(namt, ind, idir, my_block2):
   """
@@ -272,8 +335,7 @@ def xsmrep(namt, ind, idir, my_block2):
   *
   *-----------------------------------------------------------------------
   """
-  i = ipos = ipos2 = irc = irc2 = istart = 0
-  namp = nomC = ""
+  i = ipos = ipos2 = irc = irc2 = 0
   if my_block2.idir != idir:
     # SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
     if (my_block2.modif == 1):
@@ -289,10 +351,10 @@ def xsmrep(namt, ind, idir, my_block2):
   if (my_block2.nmt < iofmax):
     ipos = my_block2.idir
   if (my_block2.nmt == 0):
-    pass # goto L50
+    raise AssertionError()
   if namp in my_block2.cmt:
     # THE BLOCK ALREADY EXISTS
-    return my_block2.cmt.index(namp)+1
+    return my_block2.cmt.index(namp)
   # THE BLOCK NAMP DOES NOT EXISTS IN THE ACTIVE DIRECTORY EXTENT. WE
   # SEARCH IN OTHER EXTENTS THAT BELONG TO THE ACTIVE DIRECTORY.
   if (my_block2.idir != my_block2.link):
@@ -307,13 +369,13 @@ def xsmrep(namt, ind, idir, my_block2):
 	ipos = my_block2.idir
       if namp in my_block2.cmt:
 	# THE BLOCK NAMP WAS FOUND IN THE ACTIVE DIRECTORY EXTENT
-	return my_block2.cmt.index(namp)+1
+	return my_block2.cmt.index(namp)
       if (my_block2.link == istart):
 	break
       my_block2.idir = my_block2.link
-  return 0
+  return -1
 
-def xsmget(iplist, namp):
+def xsmget(iplist, namp, itylcm = 1):
   """
   *-----------------------------------------------------------------------
   *
@@ -328,15 +390,19 @@ def xsmget(iplist, namp):
   *
   *-----------------------------------------------------------------------
   """
-  nomsub="xsmget_c"
-  nomC = ""
-  iii = irc = 0
   if iplist.header != 200:
     raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
   my_block2=iplist.ibloc
   iii = xsmrep(namp, 1, iplist.idir, my_block2)
-  if iii > 0:
-    data2 = kdiget_c(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii])
+  if iii >= 0:
+    if itylcm == 1:
+      data2 = kdiget_i(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii])
+    elif itylcm == 3:
+      data2 = kdiget_s(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii])
+    else:
+      data2 = kdiget_i(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii], 'd')
+  else:
+    raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,iplist.hname))
   return data2
 
 def xsmnxt(iplist,namp = " "):
@@ -367,15 +433,15 @@ def xsmnxt(iplist,namp = " "):
 	xsmdir(2, my_block2)
       my_block2.idir = iplist.idir
       xsmdir(1, my_block2)
-    iii = min(my_block2.nmt,1)
+    iii = min(my_block2.nmt,0)
   else:
-    iii = xsmrep(namp, 1, iplist.idir, my_block2)
-  if iii == 0 and namp == " ":
+    iii = xsmrep(namp, 1, iplist.idir, my_block2)+1
+  if iii == -1 and namp == " ":
     #EMPTY DIRECTORY
     raise AssertionError("THE ACTIVE DIRECTORY '%s' OF THE XSM FILE '%s' IS EMPTY."%(my_block2.mynam,iplist.hname))
-  elif iii == 0:
+  elif iii == -1:
     raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,iplist.hname))
-  elif iii + 1 <= my_block2.nmt:
+  elif iii < my_block2.nmt:
     namp = my_block2.cmt[iii]
     return namp
   #SWITCH TO THE NEXT DIRECTORY.
@@ -416,9 +482,9 @@ def xsmlen(iplist, namp):
     raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
   my_block2=iplist.ibloc
   iii = xsmrep(namp, 1, iplist.idir, my_block2)
-  if (iii > 0):
-    ilong = my_block2.jlon[iii-1]
-    itype = my_block2.jtyp[iii-1]
+  if (iii >= 0):
+    ilong = my_block2.jlon[iii]
+    itype = my_block2.jtyp[iii]
   else:
     ilong = 0
     itype = 99
@@ -459,6 +525,157 @@ def xsminf(iplist):
   access = iplist.impf
   return namxsm, nammy, empty, ilong, access
 
+def xsmdid(iplist, namp):
+  """
+  *-----------------------------------------------------------------------
+  *
+  * CREATE/ACCESS A DAUGHTER ASSOCIATIVE TABLE IN A FATHER TABLE.
+  *
+  * INPUT PARAMETERS:
+  *  IPLIST : ADDRESS OF THE FATHER TABLE.
+  *    NAMP : CHARACTER*12 NAME OF THE DAUGHTER ASSOCIATIVE TABLE.
+  *
+  * OUTPUT PARAMETER:
+  *  JPLIST : ADDRESS OF THE DAUGHTER ASSOCIATIVE TABLE.
+  *
+  *-----------------------------------------------------------------------
+  """
+  if (iplist.header != 200):
+    raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
+
+  my_block2=iplist.ibloc
+  iii = xsmrep(namp, 2, iplist.idir, my_block2)
+  lenold = my_block2.jlon[iii]
+  ityold = my_block2.jtyp[iii]
+  if (lenold == 0):
+    #CREATE A NEW SCALAR DIRECTORY EXTENT ON THE XSM FILE.
+    raise AssertionError()
+    #if (iplist.impf == 2):
+      #raise AssertionError("THE XSM FILE '%s' IS OPEN IN READ-ONLY MODE."%iplist.hname)
+    #my_block2.jlon[iii-1] = -1
+    #my_block2.jtyp[iii-1] = 0
+    #my_block2.iofs[iii-1] = my_block2.ioft
+    #idir = my_block2.iofs[iii-1]
+    #my_block2.ioft += klong
+    #xsmdir(2, my_block2)
+    #my_block2.iroot = my_block2.idir
+    #my_block2.mynam = namp
+    #my_block2.idir = my_block2.iofs[iii-1]
+    #my_block2.nmt = 0
+    #my_block2.link = my_block2.idir
+    #my_block2.modif = 1
+  elif (lenold == -1 and ityold == 0):
+    idir = my_block2.iofs[iii]
+  else:
+    raise AssertionError("BLOCK '%s' IS NOT AN ASSOCIATIVE TABLE OF THE XSM FILE '%s'."%(namp,iplist.hname))
+
+  #COPY BLOCK1
+  jplist = copy(iplist)
+  jplist.listlen = -1
+  jplist.idir  = idir
+  jplist.father = iplist
+  #xsmkep(iplist.icang, 1, jplist)
+  return jplist
+
+def xsmlid(iplist, namp, ilong):
+  """
+  *-----------------------------------------------------------------------
+  *
+  * CREATE/ACCESS THE HIERARCHICAL STRUCTURE OF A LIST IN A XSM FILE.
+  *
+  * INPUT PARAMETERS:
+  *  IPLIST : ADDRESS OF THE FATHER TABLE.
+  *    NAMP : CHARACTER*12 NAME OF THE DAUGHTER LIST.
+  *   ILONG : DIMENSION OF THE DAUGHTER LIST.
+  *
+  * OUTPUT PARAMETER:
+  *  JPLIST : ADDRESS OF THE DAUGHTER LIST.
+  *
+  *-----------------------------------------------------------------------
+  """
+  if (iplist.header != 200):
+    raise AssertionError("THE XSM FILE '%s' HAS THE WRONG HEADER."%iplist.hname)
+  elif ilong <= 0:
+    raise AssertionError("INVALID LENGTH (%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(ilong,iplist.hname))
+  my_block2=iplist.ibloc
+  iii = xsmrep(namp, 2, iplist.idir, my_block2)
+  lenold = my_block2.jlon[iii]
+  ityold = my_block2.jtyp[iii]
+  if (ilong > lenold and ityold == 10 or lenold == 0):
+    #CREATE ILONG-LENOLD NEW LIST EXTENTS ON THE XSM FILE.
+    raise AssertionError()
+    #if (iplist.impf != 2):
+      #raise AssertionError("THE XSM FILE '%s' IS OPEN IN READ-ONLY MODE."%iplist.hname)
+    #my_block2.jlon[iii-1] = ilong
+    #my_block2.jtyp[iii-1] = 10
+    #idiold = my_block2.iofs[iii-1]
+    #my_block2.iofs[iii-1] = my_block2.ioft
+    #idir = my_block2.iofs[iii-1]
+    #my_block2.ioft += ilong
+    #iroold = my_block2.idir
+    #xsmdir(&c__2, my_block2)
+    #if (lenold > 0):
+      #iivec = kdiget_c(my_block2.ifile, idiold, lenold)
+    #for i in xrange(abs(lenold) + 1, ilong + 1):
+    ##for (i = abs(lenold) + 1; i <= ilong; ++i) {
+      #iivec[i-1] = my_block2.ioft
+      #my_block2.iroot = iroold
+      #my_block2.mynam = namp
+      #my_block2.nmt = 0
+      #my_block2.idir = my_block2.ioft
+      #my_block2.ioft += klong
+      #my_block2.link = my_block2.idir
+      #xsmdir(2, my_block2)
+    #irc = kdiput_c(my_block2.ifile, iivec, idir, ilong)
+  elif (lenold == ilong and ityold == 10):
+    idir = my_block2.iofs[iii]
+  elif (ityold != 10):
+    raise AssertionError("BLOCK '%s' IS NOT A LIST OF THE XSM FILE '%s'."%(namp,iplist.hname))
+  else:
+    raise AssertionError("THE LIST '%s' OF THE XSM FILE '%s' HAVE AN INVALID LENGTH (%d)."%(namp,iplist.hname,ilong))
+  iivec = kdiget_i(my_block2.ifile, idir, ilong)
+  jplist = []
+  for ivec in iivec:
+    #COPY BLOCK1
+    iofset = copy(iplist)
+    iofset.listlen = 0
+    iofset.idir = ivec
+    iofset.father = iplist
+    #iofset.header = iplist.header
+    #iofset.hname = iplist.hname
+    #iofset.listlen = 0
+    #iofset.impf = iplist.impf
+    #iofset.idir = ivec
+    #iofset.ibloc = iplist.ibloc
+    #iofset.icang = iplist.icang
+    #iofset.icang2 = iplist.icang2
+    #iofset.father = iplist
+    jplist.append(iofset)
+  #xsmkep(iplist.icang, 1, jplist)
+  return jplist
+
+def xsmgid(iplist, namp):
+  """
+  *-----------------------------------------------------------------------
+  *
+  * GET THE ADDRESS OF A TABLE OR OF A LIST LOCATED IN A FATHER TABLE.
+  *
+  * INPUT PARAMETERS:
+  *  IPLIST : ADDRESS OF THE FATHER TABLE.
+  *    NAMP : CHARACTER*12 NAME OF THE SON TABLE OR LIST.
+  *
+  * OUTPUT PARAMETER:
+  *  lcmgid_c : ADDRESS OF THE TABLE OR OF THE LIST NAMED NAMP.
+  *
+  *-----------------------------------------------------------------------
+  """
+  ilong,itylcm = xsmlen(iplist,namp)
+  if (ilong == -1):
+    jplist = [xsmdid(iplist,namp)]
+  else:
+    jplist = xsmlid(iplist,namp,ilong)
+  return jplist
+
 if __name__ == "__main__":
   import sys
   try:
@@ -467,41 +684,31 @@ if __name__ == "__main__":
     filePath="/home/melodie/Bureau/xsm_open/XSMCPO_0004"
   iplist = xsm()
   xsmop(iplist,filePath,2)
-  #if((IBASE(IPLIS1+IHEAD) != 100) and (IBASE(IPLIS1+IHEAD) != 200)):
-    #raise AssertionError('THE TABLE (IBASE(IPLIS1+IHNAM+I),I=0,2) HAS THE WRONG HEADER(1).')
-  #elif((IBASE(IPLIS2+IHEAD).NE.100) and (IBASE(IPLIS2+IHEAD).NE.200)):
-    #raise AssertionError('THE TABLE (IBASE(IPLIS2+IHNAM+I),I=0,2) HAS THE WRONG HEADER(2).')
-  #elif(IBASE(IPLIS1+ILLIST) >= 0):
-    #raise AssertionError('THE OBJECT (IBASE(IPLIS1+IHNAM+I),I=0,2) IS A LIST.')
+
   maxlev = 50
-  kdata1 = [0] * maxlev
-  kdata2 = [0] * maxlev
-  kjlon = [0] * maxlev
-  ivec = [0] * maxlev
-  igo = [0] * maxlev
-  first = [""] * maxlev
-  path = [""] * maxlev
-  ilev=0
-  kdata1[ilev]=iplist
-  kdata2[ilev]=iplist
-  kjlon[ilev]=-1
-  ivec[ilev]=1
-  #ASSOCIATIVE TABLE.
-  igo[ilev]=5
-  namxsm, myname, empty, ilong, lcm = xsminf(iplist)
-  if empty:
-    print "GO TO (160,160,190,190,200),IGO(ILEV)"
-  namt = " "
-  namt = xsmnxt(iplist,namt)
-  first[ilev]=namt
-  ilong,itylcm = xsmlen(iplist,namt)
-  if ilong != 0 and itylcm == 0:
-    #ASSOCIATIVE TABLE DATA.
-    pass
-  elif ilong != 0 and itylcm == 10:
-    #LIST DATA.
-    pass
-  elif ilong != 0 and itylcm <= 6:
-    pass
-  namt = xsmnxt(iplist,namt)
-  print namt
+
+  def browseXsm(iplist_list,ilev=0):
+    for iplist in iplist_list:
+      if ilev >= maxlev:
+	raise AssertionError("TOO MANY DIRECTORY LEVELS ON "+namxsm)
+      namxsm, myname, empty, ilong, lcm = xsminf(iplist)
+      print myname, ilev, ilong
+      if empty:
+	break
+      namt = xsmnxt(iplist)
+      if "***HANDLE***" == namt:
+	ilong,itylcm = xsmlen(iplist," ")
+	browseXsm(xsmgid(iplist," "),ilev = ilev+1)
+      else:
+	first = namt
+	while True:
+	  ilong,itylcm = xsmlen(iplist,namt)
+	  if ilong != 0 and ( itylcm == 0 or itylcm == 10 ):
+	    browseXsm(xsmgid(iplist,namt),ilev = ilev+1)
+	  elif ilong != 0 and itylcm <= 6:
+	    print namt, ilong, xsmget(iplist,namt,itylcm)
+	  namt = xsmnxt(iplist,namt)
+	  if (namt == first):
+	    break
+  browseXsm([iplist])
+

@@ -6,6 +6,7 @@
 
 # original source code from Ganlib Version5 in C and FORTRAN77
 
+from array import array
 from copy import copy
 from MyParserTool import *
 
@@ -17,8 +18,13 @@ klong = 5+iwrd+(3+iwrd)*iofmax
 
 def xsmToElementList(filePath):
   with open(filePath,'rb') as inputfile:
+    head=inputfile.read(8)
+    if head == '$XSM    ':
+      nbits = '64bits'
+    else:
+      nbits = '32bits'
     elementList = []
-    iplist = xsm(inputfile)
+    iplist = xsm(inputfile,nbits)
     browseXsm([iplist],elementList)
     return elementList
 
@@ -38,14 +44,14 @@ class xsm:                  # active directory resident-memory xsm structure
   ANY BLOCK CAN CONTAIN A SUB-DIRECTORY IN ORDER TO CREATE A HIERAR-
   CHICAL STRUCTURE.
   """
-  def __init__(self, myFile):
+  def __init__(self, myFile, nbits = '32bits'):
     # string
     self.hname = myFile.name # name of the xsm file
     # int_32
     self.impf = 0            # type of access (1:modif or 2:read-only)
     self.idir = 0            # offset of active directory on xsm file
     # Block2
-    self.ibloc = Block2()    # address of block 2 in memory
+    self.ibloc = Block2(nbits) # address of block 2 in memory
     self.xsmop(myFile, 2)
 
 #----------------------------------------------------------------------#
@@ -85,11 +91,11 @@ class xsm:                  # active directory resident-memory xsm structure
     my_block2.ifile = myFile
     if imp >= 1:
       # RECOVER THE ROOT DIRECTORY IF THE XSM FILE ALREADY EXISTS
-      hbuf = kdiget_s(my_block2.ifile,0)
+      hbuf = my_block2.kdiget_s(0)
       if hbuf[:4] != "$XSM":
 	raise AssertionError("WRONG HEADER ON XSM FILE '%s'."%self.hname)
-      my_block2.ioft = kdiget(my_block2.ifile,1).pop()
-      my_block2.idir = kdiget(my_block2.ifile,2).pop()
+      my_block2.ioft = my_block2.kdiget(1).pop()
+      my_block2.idir = my_block2.kdiget(2).pop()
       self.idir = my_block2.idir
       my_block2.xsmdir(1)
       my_block2.modif = 0
@@ -214,11 +220,11 @@ class xsm:                  # active directory resident-memory xsm structure
     iii = my_block2.xsmrep(namp, 1, self.idir)
     if iii >= 0:
       if itylcm == 1:
-	data2 = kdiget(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii])
+	data2 = my_block2.kdiget(my_block2.iofs[iii], my_block2.jlon[iii])
       elif itylcm == 3:
-	data2 = kdiget_s(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii])
+	data2 = my_block2.kdiget_s(my_block2.iofs[iii], my_block2.jlon[iii])
       else:
-	data2 = kdiget(my_block2.ifile, my_block2.iofs[iii], my_block2.jlon[iii], 'd')
+	data2 = my_block2.kdiget(my_block2.iofs[iii], my_block2.jlon[iii], 'real')
     else:
       raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,self.hname))
     return data2
@@ -282,7 +288,7 @@ class xsm:                  # active directory resident-memory xsm structure
       raise AssertionError("BLOCK '%s' IS NOT A LIST OF THE XSM FILE '%s'."%(namp,self.hname))
     else:
       raise AssertionError("THE LIST '%s' OF THE XSM FILE '%s' HAVE AN INVALID LENGTH (%d)."%(namp,self.hname,ilong))
-    iivec = kdiget(my_block2.ifile, idir, ilong)
+    iivec = my_block2.kdiget(idir, ilong)
     jplist = []
     for ivec in iivec:
       #COPY BLOCK1
@@ -294,9 +300,23 @@ class xsm:                  # active directory resident-memory xsm structure
 #----------------------------------------------------------------------#
 
 class Block2:             # active directory resident-memory xsm structure
-  def __init__(self):
+  def __init__(self,nbits):
     # file
     self.ifile = None  # xsm (kdi) file handle
+    if nbits == '32bits':
+      self.lnword = 4
+      self.typedico = { 'integer' : 'i',
+			'real'    : 'f',
+			'double'  : 'd'
+		      }
+    elif nbits == '64bits':
+      self.lnword = 8
+      self.typedico = { 'integer' : 'l',
+			'real'    : 'd',
+			'double'  : 'd'
+		      }
+    else:
+      raise AssertionError('32 or 64 bits ?')
     # int32
     self.idir = 0         # offset of active directory on xsm file
     self.modif = 0        # =1 if the active directory extent have been modified
@@ -334,6 +354,23 @@ class Block2:             # active directory resident-memory xsm structure
 
 #----------------------------------------------------------------------#
 
+  def kdiget_s(self,iofset,length = 1):
+    data = []
+    offset = iofset*self.lnword
+    self.ifile.seek(offset)
+    for i in xrange(length):
+      data.append(self.ifile.read(self.lnword)[:4])
+    return "".join(data)
+
+  def kdiget(self,iofset,length=1, datatype = 'integer'):
+    data = array(self.typedico[datatype])
+    offset = iofset*self.lnword
+    self.ifile.seek(offset)
+    data.fromfile(self.ifile,length)
+    return data.tolist()
+
+#----------------------------------------------------------------------#
+
   def xsmdir(self, ind):
     """
     import a directory using the kdi utility
@@ -343,32 +380,32 @@ class Block2:             # active directory resident-memory xsm structure
     """
     ipos = self.idir
     if ind == 1:
-      hbuf = kdiget_s(self.ifile,ipos)
+      hbuf = self.kdiget_s(ipos)
       if hbuf[:4] != "$$$$":
 	raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
       ipos += 1
-      iofma2 = kdiget(self.ifile,ipos).pop()
+      iofma2 = self.kdiget(ipos).pop()
       ipos += 1
-      self.nmt = kdiget(self.ifile,ipos).pop()
+      self.nmt = self.kdiget(ipos).pop()
       if self.nmt > iofmax:
 	raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
       ipos += 1
-      self.link = kdiget(self.ifile,ipos).pop()
+      self.link = self.kdiget(ipos).pop()
       ipos += 1
-      self.iroot = kdiget(self.ifile,ipos).pop()
+      self.iroot = self.kdiget(ipos).pop()
       ipos += 1
-      self.mynam = kdiget_s(self.ifile,ipos,3)
+      self.mynam = self.kdiget_s(ipos,3)
       if self.nmt != 0:
 	ipos += iwrd
-	self.iofs = kdiget(self.ifile,ipos,self.nmt)
+	self.iofs = self.kdiget(ipos,self.nmt)
 	ipos += iofma2
-	self.jlon = kdiget(self.ifile,ipos,self.nmt)
+	self.jlon = self.kdiget(ipos,self.nmt)
 	ipos += iofma2
-	self.jtyp = kdiget(self.ifile,ipos,self.nmt)
+	self.jtyp = self.kdiget(ipos,self.nmt)
 	ipos += iofma2
 	self.cmt = []
 	for i in xrange(self.nmt):
-	  self.cmt.append(kdiget_s(self.ifile,ipos,3))
+	  self.cmt.append(self.kdiget_s(ipos,3))
 	  ipos += iwrd
     elif ind == 2:
       raise AssertionError("EXPORT not implemented")

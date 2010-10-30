@@ -8,7 +8,7 @@ def elementListFromFile(filePath):
   with open(filePath) as inputfile:
     # read the 4 first character
     head=inputfile.read(4)
-  if '$XSM' == head:
+  if '$XSM' in head:
     # if the first four characters are "$XSM" it's most certainly a XSM file
     from MyXsmParser import xsmToElementList
     return xsmToElementList(filePath)
@@ -16,27 +16,6 @@ def elementListFromFile(filePath):
     # we suppose it's an ASCII file
     from MyAsciiParser import asciiToElementList
     return asciiToElementList(filePath)
-
-#----------------------------------------------------------------------#
-
-lnword = 8
-
-def kdiget_s(myFile,iofset,length=1):
-  data = []
-  offset = iofset*lnword
-  myFile.seek(offset)
-  for i in xrange(length):
-    data.append(myFile.read(lnword)[:4])
-  return "".join(data)
-
-from array import array
-
-def kdiget(myFile,iofset,length=1, datatype = 'l'):
-  data = array(datatype)
-  offset = iofset*lnword
-  myFile.seek(offset)
-  data.fromfile(myFile,length)
-  return data.tolist()
 
 #----------------------------------------------------------------------#
 

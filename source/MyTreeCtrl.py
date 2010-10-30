@@ -5,8 +5,8 @@ from operator import isSequenceType
 
 import wx
 
-import MyAsciiParser
-from MyAsciiParser import LinkedListElement
+import MyAsciiParser, MyParserTool
+from MyParserTool import LinkedListElement
 from MyCalculation import MyMicroLib, MyCalculation
 from MyRefcase import MyRefcase
 
@@ -242,7 +242,7 @@ class MyTreeCtrl(wx.TreeCtrl):
 
     return lastVisibleChild
 
-  def recoverAsciiFile(self,file):
+  def recoverAsciiFile(self,filePath):
     config = ConfigParser.RawConfigParser()
     config.read(os.path.expanduser('~/.asciiviewer.cfg'))
     sort = config.getboolean('mainconfig', 'sort')
@@ -257,9 +257,13 @@ class MyTreeCtrl(wx.TreeCtrl):
       fExpand = self.Expand
     else:
       fExpand = fPass
-    root = self.AddRoot(file)
-    #MyAsciiParser.asciiToTree(file,self) # this method has been implemented last, and is a bit faster
-    elementList = MyAsciiParser.asciiToElementList(file)
+    root = self.AddRoot(filePath)
+    #elementList = MyAsciiParser.asciiToElementList(filePath)
+    elementList = []
+    from MyXsmParser import *
+    with open(filePath,'rb') as myFile:
+      iplist = xsm(myFile)
+      browseXsm([iplist],elementList)
     self.ConstructAsciiTree(elementList,fExpand,fSort)
   
   def getSummary(self,eltId):
@@ -297,7 +301,7 @@ class MyTreeCtrl(wx.TreeCtrl):
     for cId in calcIdList:
       c = self.GetPyData(cId)
       ical = int(c.label)
-      muplet = MyAsciiParser.comupl(nvp,nptot,ical,ncals,debarb,arbval)
+      muplet = MyParserTool.comupl(nvp,nptot,ical,ncals,debarb,arbval)
       c.contentType = 1
       c.content = muplet
       stateVector  = self.getChildData(cId, "STATE-VECTOR")

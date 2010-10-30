@@ -5,22 +5,21 @@
 # date : 24/11/09
 
 import wx
+from MyParserTool import *
 
-class LinkedListElement:
-  def __init__(self,id,level,labelType,label,contentType,content):
-    self.id = id
-    self.level = level
-    self.labelType = labelType
-    self.label = str(label)
-    self.contentType = contentType
-    self.content = content
-    self.table = None # MyTableColumn(self.label,self.content)
-
-  def printIt(self):
-    print self.id,self.level,self.labelType,self.label,self.contentType,self.content
+def asciiToElementList(filePath):
+  with open(filePath) as inputfile:
+    # print the entire file into one big string
+    readablefile=inputfile.read()
+  if readablefile[:2]=='->':
+    # if the first two characters are "->" it's most certainly a Version4 ASCII file 
+    return asciiToElementListVersion4(readablefile)
+  else:
+    # we suppose it's a Version3 ASCII file
+    return asciiToElementListVersion3(readablefile)
 
 def asciiToElementListVersion4(readablefile):
-  #readablefile=readablefile.replace(' 4\n',' 4 \n').replace('\n','').split('->')
+  # split the string according to <- and ->
   print 'reading file...'
   readablefile=readablefile.split('->')
   print 'organizing data...'
@@ -28,73 +27,25 @@ def asciiToElementListVersion4(readablefile):
   id = 0
   for r in readablefile:
     if r != '':
-      pos_key=r.split('<-')
-      if len(pos_key) != 2:
-        print 'Problem with readable file'
-        print r
+      try:
+	left,right = r.split('<-')
+      except ValueError:
+	raise AssertionError('Problem while parsing the following :\n'+'*'*70+'\n->'+r+'*'*70)
       # process the left part of <-
-      pos_key[0] = pos_key[0].split()
-      level = int(pos_key[0][0])
-      labelType = int(pos_key[0][1])
-      contentType = int(pos_key[0][2])
-      contentSize = int(pos_key[0][3])
-      # process the right part <-
+      level, labelType, contentType, contentSize = map(int,left.split())
+      # process the right part of <-
       if labelType != 0:
 	# get rid of the spaces between <- and the string label
-        pos_key[1] = pos_key[1].lstrip()
-      label = pos_key[1][0:12].strip()
+        right = right.lstrip()
+      label = right[0:12].strip()
       if contentSize!=0:
-	content = Content(contentType,contentSize,pos_key[1],False)
+	content = Content(contentType,contentSize,right,False)
 	element = LinkedListElement(id,level,labelType,label,contentType,content)
 	elementList.append(element)
 	id=id+1
   print 'building tree...'
   return elementList
 
-def getContent(contentType,contentSize,rhs):
-  rhs = rhs[13:]
-  rhs = rhs.lstrip(' ')
-  rhs = rhs.replace('\n','')
-  if contentType==3:
-    rhs=rhs[10*contentSize:]
-    rhs=rhs.replace('\n','')
-    step = fancyStep(rhs)
-    content = []
-    if step == 0:
-      content = rhs.split()
-    else:
-      while rhs != '':
-	content.append(rhs[0:step].strip())
-	rhs = rhs[step:]
-  else:
-    content=None
-    if contentSize>0:
-      content=rhs.split()
-  return content
-
-class Content:
-  def __init__(self,contentType,contentSize,content,bProcess):
-    self.contentType = contentType
-    self.contentSize = contentSize
-    self.content = content
-    self.processed = False
-    if bProcess:
-      self.process()
-    
-  def process(self):
-    if not(self.processed):
-      self.content = getContent(self.contentType,self.contentSize,self.content)
-    self.processed = True
-    return True
-    
-  def getContent(self):
-    self.process()
-    return self.content
-  
-  def setContent(self,content):
-    self.content=content
-    self.processed = True
-  
 def asciiToElementListVersion3(readablefile):
   readablefile=readablefile.replace('\n','')
   def readNodeHeader(string):
@@ -144,21 +95,11 @@ def asciiToElementListVersion3(readablefile):
     id=id+1
   return elementList
 
-def asciiToElementList(file):
-  # we make the file a 1 line string and we split it according to <- and ->
-  with open(file) as inputfile:
-    readablefile=inputfile.read()
-  if readablefile[0]=='-':
-    # if the file begins with "->" it's a Version4 file 
-    return asciiToElementListVersion4(readablefile)
-  else:
-    return asciiToElementListVersion3(readablefile)
-
-def asciiToTree(file,tree):
+def asciiToTree(filePath,tree):
   # this function was designed to be a faster alternative to asciiToElementList and then ConstructAsciiTree
   # but it's not that fast
   # we make the file a 1 line string and we split it according to <- and ->
-  with open(file) as inputfile:
+  with open(filePath) as inputfile:
     #readablefile=inputfile.read().replace(' 4\n',' 4 \n').replace('\n','').split('->')
     readablefile=inputfile.read().split('->')
 
@@ -236,64 +177,13 @@ def asciiToTree(file,tree):
   tree.Expand(root)
   #return elementList
 
-def fancyStep(string):
-  """Try to find a proper step to cut the string"""
-  n = len(string)
-  stepList = [12,8,4]
-  myStep = 0
-  for s in stepList:
-    # try cutting 's' chars by 's' chars
-    properStep = (n%s == 0)
-    if properStep:
-      startingCharList = string[0::s]
-      for car in startingCharList:
-        if car == ' ':
-          properStep = False
-          break
-    if properStep:
-      copy = string[:]
-      while copy != '':
-        if copy[0:s].strip() == '':
-          properStep = False
-          break
-        copy = copy[s:]
-    if properStep:
-      myStep = s
-      break
-  return myStep
-
-def comupl(nvp,nptot,ical,ncals,debarb,arbval):
-  """function described in IGE295 as SUBROUTINE COMUPL"""
-  """Returns an int list"""
-  muplet=[]
-  i = nvp - (ncals-1)
-  io = -1
-  while (i<nvp+1):
-    if (int(debarb[i])==int(ical)):
-      io=i
-      break
-    i=i+1
-  muplet.insert(0,int(arbval[io-1]))
-  ipar = nptot-1
-  while (ipar>0):
-    for i in range(nvp):
-      if int(debarb[i])==0:
-        print "problem",i
-      if int(debarb[i]) > io:
-        io=i
-        break
-    muplet.insert(0,int(arbval[io-1]))
-    ipar=ipar-1
-  return muplet
-
 if __name__ == "__main__":
   import sys
   try:
     myFilePath = sys.argv[1]
   except:
     myFilePath="../example/MultiCompoV4"
-  with open(myFilePath) as myFile:
-    elementList=asciiToElementListVersion4(myFile.read())
-    for e in elementList:
-      if True:#e.level < 2:
-	e.printIt()
+  elementList=asciiToElementList(myFilePath)
+  for e in elementList:
+    if True:#e.level < 2:
+      print e

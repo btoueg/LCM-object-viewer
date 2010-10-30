@@ -24,9 +24,9 @@ def xsmToElementList(filePath):
     else:
       nbits = '32bits'
     elementList = []
-    iplist = xsm(inputfile,nbits)
-    browseXsm([iplist],elementList)
-    return elementList
+    xsm_handle = xsm(inputfile,nbits)
+    browseXsm([xsm_handle],elementList)
+  return elementList
 
 class xsm:                  # active directory resident-memory xsm structure
   """
@@ -45,21 +45,42 @@ class xsm:                  # active directory resident-memory xsm structure
   CHICAL STRUCTURE.
   """
   def __init__(self, myFile, nbits = '32bits'):
+    """
+    OPEN AN EXISTING XSM FILE. VECTORIAL VERSION.
+    INPUT PARAMETERS:
+       myFile : FILE HANDLE OF THE XSM FILE.
+       nbits : encoding of the XSM file
+    
+    OUTPUT PARAMETERS:
+       self : ADDRESS OF THE HANDLE TO THE XSM FILE.
+    
+    THE ACTIVE DIRECTORY IS MADE OF TWO BLOCKS LINKED TOGETHER. A BLOCK 1
+    IS ALLOCATED FOR EACH SCALAR DIRECTORY OR VECTOR DIRECTORY COMPONENT.
+    BLOCK 2 IS UNIQUE FOR A GIVEN XSM FILE; EVERY BLOCK 1 IS POINTING TO
+    THE SAME BLOCK 2.
+    """
     # string
-    self.hname = myFile.name # name of the xsm file
+    self.name = myFile.name # name of the xsm file
     # int_32
-    self.impf = 0            # type of access (1:modif or 2:read-only)
     self.idir = 0            # offset of active directory on xsm file
     # Block2
     self.ibloc = Block2(nbits) # address of block 2 in memory
-    self.xsmop(myFile, 2)
+    my_block2 = self.ibloc
+    my_block2.ifile = myFile
+    # recover the root directory
+    hbuf = my_block2.kdiget_s(0)
+    if hbuf[:4] != "$XSM":
+      raise AssertionError("WRONG HEADER ON XSM FILE '%s'."%self.name)
+    my_block2.ioft = my_block2.kdiget(1).pop()
+    my_block2.idir = my_block2.kdiget(2).pop()
+    self.idir = my_block2.idir
+    my_block2.importdir()
 
 #----------------------------------------------------------------------#
 
   def __str__(self):
     s = "== xsm obj ==\n"
-    s += "hname "+str(self.hname)+"\n"
-    s += "impf "+str(self.impf)+"\n"
+    s += "name "+str(self.name)+"\n"
     s += "idir "+str(self.idir)+"\n"
     s += "ibloc\n"+str(self.ibloc)+"\n"
     s += "============"
@@ -67,73 +88,26 @@ class xsm:                  # active directory resident-memory xsm structure
 
 #----------------------------------------------------------------------#
 
-  def xsmop(self, myFile, imp):
-    """
-    OPEN AN EXISTING OR CREATE A NEW XSM FILE. VECTORIAL VERSION.
-    INPUT PARAMETERS:
-       NAMP : CHARACTER*12 NAME OF THE XSM FILE.
-        IMP : TYPE OF ACCESS.  =0: NEW FILE MODE;
-                               =1: MODIFICATION MODE;
-                               =2: READ ONLY MODE.
-       IMPX : IF IMPX=0, WE SUPPRESS PRINTING ON XSMOP.
-    
-    OUTPUT PARAMETERS:
-     self : ADDRESS OF THE HANDLE TO THE XSM FILE.
-       NAMP : CHARACTER*12 NAME OF THE XSM FILE IF IMP=1 OR IMP=2.
-    
-    THE ACTIVE DIRECTORY IS MADE OF TWO BLOCKS LINKED TOGETHER. A BLOCK 1
-    IS ALLOCATED FOR EACH SCALAR DIRECTORY OR VECTOR DIRECTORY COMPONENT.
-    BLOCK 2 IS UNIQUE FOR A GIVEN XSM FILE; EVERY BLOCK 1 IS POINTING TO
-    THE SAME BLOCK 2.
-    """
-    self.impf = imp
-    my_block2 = self.ibloc
-    my_block2.ifile = myFile
-    if imp >= 1:
-      # RECOVER THE ROOT DIRECTORY IF THE XSM FILE ALREADY EXISTS
-      hbuf = my_block2.kdiget_s(0)
-      if hbuf[:4] != "$XSM":
-	raise AssertionError("WRONG HEADER ON XSM FILE '%s'."%self.hname)
-      my_block2.ioft = my_block2.kdiget(1).pop()
-      my_block2.idir = my_block2.kdiget(2).pop()
-      self.idir = my_block2.idir
-      my_block2.xsmdir(1)
-      my_block2.modif = 0
-    else:
-      raise AssertionError("NEW FILE MODE not implemented")
-
-#----------------------------------------------------------------------#
-
-  def xsminf(self):
+  def info(self):
     """
     RECOVER GLOBAL INFORMATIONS RELATED TO AN XSM FILE.
     
-    INPUT PARAMETERS:
-     self : ADDRESS OF THE HANDLE TO THE XSM FILE.
-    
     OUTPUT PARAMETERS:
-     NAMXSM : NAME OF THE XSM FILE.
-      NAMMY : NAME OF THE ACTIVE DIRECTORY.
-      EMPTY : =.TRUE. IF THE ACTIVE DIRECTORY IS EMPTY.
-     ACCESS : TYPE OF ACCESS. =1: OBJECT OPEN FOR MODIFICATION;
-              =2: OBJECT IN READ-ONLY MODE.
+     self.name : NAME OF THE XSM FILE.
+      nammy : NAME OF THE ACTIVE DIRECTORY.
+      empty : =.TRUE. IF THE ACTIVE DIRECTORY IS EMPTY.
     """
     my_block2=self.ibloc
     if (my_block2.idir != self.idir):
       # SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
-      if (my_block2.modif == 1):
-	my_block2.xsmdir(2)
-      my_block2.idir = self.idir
-      my_block2.xsmdir(1)
-    namxsm = self.hname
+      my_block2.importdir(self.idir)
     nammy = my_block2.mynam
     empty = (my_block2.nmt == 0)
-    access = self.impf
-    return namxsm, nammy, empty, access
+    return self.name, nammy, empty
 
 #----------------------------------------------------------------------#
 
-  def xsmlen(self,namp):
+  def length(self,namp):
     """
     return length and type of a block, return 0 and 99 if the block is not found
       namp = name of the current block
@@ -147,10 +121,10 @@ class xsm:                  # active directory resident-memory xsm structure
               4: DOUBLE PRECISION         5: LOGICAL
               6: COMPLEX                 99: UNDEFINED
     """
-    iii = self.ibloc.xsmrep(namp, 1, self.idir)
-    if (iii >= 0):
-      ilong = self.ibloc.jlon[iii]
-      itype = self.ibloc.jtyp[iii]
+    i = self.ibloc.index(namp, self.idir)
+    if (i > -1):
+      ilong = self.ibloc.jlon[i]
+      itype = self.ibloc.jtyp[i]
     else:
       ilong = 0
       itype = 99
@@ -158,17 +132,16 @@ class xsm:                  # active directory resident-memory xsm structure
 
 #----------------------------------------------------------------------#
 
-  def xsmnxt(self,namp = " "):
+  def next(self,namp = " "):
     """
     FIND THE NAME OF THE NEXT BLOCK STORED IN THE ACTIVE DIRECTORY.
     
     INPUT PARAMETERS:
-     self : ADDRESS OF THE HANDLE TO THE XSM FILE.
-       NAMP : CHARACTER*12 NAME OF A BLOCK. IF NAMP=' ' AT INPUT, FIND
+       NAMP : NAME OF THE CURRENT BLOCK. IF NAMP=' ' AT INPUT, FIND
               ANY NAME FOR ANY BLOCK STORED IN THIS DIRECTORY.
     
     OUTPUT PARAMETERS:
-       NAMP : CHARACTER*12 NAME OF THE NEXT BLOCK. NAMP=' ' FOR AN EMPTY
+       NAMP : NAME OF THE NEXT BLOCK. NAMP=' ' FOR AN EMPTY
               DIRECTORY.
     """
     iii = 0
@@ -176,28 +149,22 @@ class xsm:                  # active directory resident-memory xsm structure
     if namp == " ":
       if my_block2.idir != self.idir:
 	#SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
-	if (my_block2.modif == 1):
-	  my_block2.xsmdir(2)
-	my_block2.idir = self.idir
-	my_block2.xsmdir(1)
+	my_block2.importdir(self.idir)
       iii = min(my_block2.nmt,0)
     else:
-      iii = my_block2.xsmrep(namp, 1, self.idir)+1
+      iii = my_block2.index(namp, self.idir)+1
     if iii == -1 and namp == " ":
       #EMPTY DIRECTORY
-      raise AssertionError("THE ACTIVE DIRECTORY '%s' OF THE XSM FILE '%s' IS EMPTY."%(my_block2.mynam,self.hname))
+      raise AssertionError("THE ACTIVE DIRECTORY '%s' OF THE XSM FILE '%s' IS EMPTY."%(my_block2.mynam,self.name))
     elif iii == -1:
-      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,self.hname))
+      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,self.name))
     elif iii < my_block2.nmt:
       namp = my_block2.cmt[iii]
       return namp
     #SWITCH TO THE NEXT DIRECTORY.
     if my_block2.idir != my_block2.link:
-      if my_block2.modif == 1:
-	my_block2.xsmdir(2)
-      my_block2.idir = my_block2.link
       #RECOVER THE NEXT DIRECTORY.
-      my_block2.xsmdir(1)
+      my_block2.importdir(my_block2.link)
     namp = my_block2.cmt[0]
     if (namp == "***HANDLE***"):
       namp = " "
@@ -205,33 +172,33 @@ class xsm:                  # active directory resident-memory xsm structure
 
 #----------------------------------------------------------------------#
 
-  def xsmget(self, namp, itylcm = 1):
+  def getblock(self, namp, itylcm = 1):
     """
-    COPY A BLOCK FROM THE XSM FILE INTO MEMORY.
+    READ A BLOCK FROM THE XSM FILE
     
     INPUT PARAMETERS:
-     self : ADDRESS OF THE HANDLE TO THE XSM FILE.
-      NAMP  : CHARACTER*12 NAME OF THE CURRENT BLOCK.
+      NAMP  : NAME OF THE CURRENT BLOCK.
+      itylcm : type of data to read
     
     OUTPUT PARAMETER:
-      DATA2 : INFORMATION ELEMENTS. DIMENSION DATA2(ILONG)
+      data : INFORMATION ELEMENTS. DIMENSION DATA2(ILONG)
     """
     my_block2=self.ibloc
-    iii = my_block2.xsmrep(namp, 1, self.idir)
+    iii = my_block2.index(namp, self.idir)
     if iii >= 0:
       if itylcm == 1:
-	data2 = my_block2.kdiget(my_block2.iofs[iii], my_block2.jlon[iii])
+	data = my_block2.kdiget(my_block2.iofs[iii], my_block2.jlon[iii])
       elif itylcm == 3:
-	data2 = my_block2.kdiget_s(my_block2.iofs[iii], my_block2.jlon[iii])
+	data = my_block2.kdiget_s(my_block2.iofs[iii], my_block2.jlon[iii])
       else:
-	data2 = my_block2.kdiget(my_block2.iofs[iii], my_block2.jlon[iii], 'real')
+	data = my_block2.kdiget(my_block2.iofs[iii], my_block2.jlon[iii], 'real')
     else:
-      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,self.hname))
-    return data2
+      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,my_block2.mynam,self.name))
+    return data
 
 #----------------------------------------------------------------------#
 
-  def xsmdid(self, namp):
+  def fetchdir(self, namp):
     """
     CREATE/ACCESS A DAUGHTER ASSOCIATIVE TABLE IN A FATHER TABLE.
     
@@ -243,16 +210,16 @@ class xsm:                  # active directory resident-memory xsm structure
     JPLIST : ADDRESS OF THE DAUGHTER ASSOCIATIVE TABLE.
     """
     my_block2=self.ibloc
-    iii = my_block2.xsmrep(namp, 2, self.idir)
+    iii = my_block2.index(namp, self.idir)
     lenold = my_block2.jlon[iii]
     ityold = my_block2.jtyp[iii]
     if (lenold == 0):
       #CREATE A NEW SCALAR DIRECTORY EXTENT ON THE XSM FILE.
-      raise AssertionError()
+      raise AssertionError("No creation mode !")
     elif (lenold == -1 and ityold == 0):
       idir = my_block2.iofs[iii]
     else:
-      raise AssertionError("BLOCK '%s' IS NOT AN ASSOCIATIVE TABLE OF THE XSM FILE '%s'."%(namp,self.hname))
+      raise AssertionError("BLOCK '%s' IS NOT AN ASSOCIATIVE TABLE OF THE XSM FILE '%s'."%(namp,self.name))
 
     #COPY BLOCK1
     jplist = copy(self)
@@ -261,22 +228,22 @@ class xsm:                  # active directory resident-memory xsm structure
 
 #----------------------------------------------------------------------#
 
-  def xsmlid(self, namp, ilong):
+  def fetchlist(self, namp, ilong):
     """
     CREATE/ACCESS THE HIERARCHICAL STRUCTURE OF A LIST IN A XSM FILE.
     
     INPUT PARAMETERS:
       self : ADDRESS OF THE FATHER TABLE.
-      NAMP : CHARACTER*12 NAME OF THE DAUGHTER LIST.
+      NAMP : NAME OF THE DAUGHTER LIST.
       ILONG : DIMENSION OF THE DAUGHTER LIST.
     
     OUTPUT PARAMETER:
     JPLIST : ADDRESS OF THE DAUGHTER LIST.
     """
     if ilong <= 0:
-      raise AssertionError("INVALID LENGTH (%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(ilong,self.hname))
+      raise AssertionError("INVALID LENGTH (%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(ilong,self.name))
     my_block2=self.ibloc
-    iii = my_block2.xsmrep(namp, 2, self.idir)
+    iii = my_block2.index(namp, self.idir)
     lenold = my_block2.jlon[iii]
     ityold = my_block2.jtyp[iii]
     if (ilong > lenold and ityold == 10 or lenold == 0):
@@ -285,9 +252,9 @@ class xsm:                  # active directory resident-memory xsm structure
     elif (lenold == ilong and ityold == 10):
       idir = my_block2.iofs[iii]
     elif (ityold != 10):
-      raise AssertionError("BLOCK '%s' IS NOT A LIST OF THE XSM FILE '%s'."%(namp,self.hname))
+      raise AssertionError("BLOCK '%s' IS NOT A LIST OF THE XSM FILE '%s'."%(namp,self.name))
     else:
-      raise AssertionError("THE LIST '%s' OF THE XSM FILE '%s' HAVE AN INVALID LENGTH (%d)."%(namp,self.hname,ilong))
+      raise AssertionError("THE LIST '%s' OF THE XSM FILE '%s' HAVE AN INVALID LENGTH (%d)."%(namp,self.name,ilong))
     iivec = my_block2.kdiget(idir, ilong)
     jplist = []
     for ivec in iivec:
@@ -319,7 +286,6 @@ class Block2:             # active directory resident-memory xsm structure
       raise AssertionError('32 or 64 bits ?')
     # int32
     self.idir = 0         # offset of active directory on xsm file
-    self.modif = 0        # =1 if the active directory extent have been modified
     self.ioft = 0         # maximum address on xsm file
     self.nmt = 0          # exact number of nodes on the active directory extent
     self.link = 0         # offset of the next directory extent
@@ -331,7 +297,7 @@ class Block2:             # active directory resident-memory xsm structure
     self.jlon = [0]*iofmax # length of each record (jlong=0 for a directory) that belong to the active directory extent
     self.jtyp = [0]*iofmax # type of each block that belong to the active directory extent
     # string list (iofmax long)
-    self.cmt = []          # list of character*12 names of each block (record or directory) that belong to the active directory extent
+    self.cmt = []          # names list of each block (record or directory) that belong to the active directory extent
 
 #----------------------------------------------------------------------#
 
@@ -339,7 +305,6 @@ class Block2:             # active directory resident-memory xsm structure
     s =  "== Block2 obj ==\n"
     s += "kdi_file "+str(self.ifile)+"\n"
     s += "idir "+str(self.idir)+"\n"
-    s += "modif "+str(self.modif)+"\n"
     s += "ioft "+str(self.ioft)+"\n"
     s += "nmt "+str(self.nmt)+"\n"
     s += "link "+str(self.link)+"\n"
@@ -371,75 +336,63 @@ class Block2:             # active directory resident-memory xsm structure
 
 #----------------------------------------------------------------------#
 
-  def xsmdir(self, ind):
+  def importdir(self, idir = -1):
     """
     import a directory using the kdi utility
-
-    INPUT PARAMETERS:
-     ind = 1 for import ; 2 for export
     """
+    if idir > -1:
+      self.idir = idir
     ipos = self.idir
-    if ind == 1:
-      hbuf = self.kdiget_s(ipos)
-      if hbuf[:4] != "$$$$":
-	raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
-      ipos += 1
-      iofma2 = self.kdiget(ipos).pop()
-      ipos += 1
-      self.nmt = self.kdiget(ipos).pop()
-      if self.nmt > iofmax:
-	raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
-      ipos += 1
-      self.link = self.kdiget(ipos).pop()
-      ipos += 1
-      self.iroot = self.kdiget(ipos).pop()
-      ipos += 1
-      self.mynam = self.kdiget_s(ipos,3)
-      if self.nmt != 0:
+    hbuf = self.kdiget_s(ipos)
+    if hbuf[:4] != "$$$$":
+      raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
+    ipos += 1
+    iofma2 = self.kdiget(ipos).pop()
+    ipos += 1
+    self.nmt = self.kdiget(ipos).pop()
+    if self.nmt > iofmax:
+      raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
+    ipos += 1
+    self.link = self.kdiget(ipos).pop()
+    ipos += 1
+    self.iroot = self.kdiget(ipos).pop()
+    ipos += 1
+    self.mynam = self.kdiget_s(ipos,3)
+    if self.nmt != 0:
+      ipos += iwrd
+      self.iofs = self.kdiget(ipos,self.nmt)
+      ipos += iofma2
+      self.jlon = self.kdiget(ipos,self.nmt)
+      ipos += iofma2
+      self.jtyp = self.kdiget(ipos,self.nmt)
+      ipos += iofma2
+      self.cmt = []
+      for i in xrange(self.nmt):
+	self.cmt.append(self.kdiget_s(ipos,3))
 	ipos += iwrd
-	self.iofs = self.kdiget(ipos,self.nmt)
-	ipos += iofma2
-	self.jlon = self.kdiget(ipos,self.nmt)
-	ipos += iofma2
-	self.jtyp = self.kdiget(ipos,self.nmt)
-	ipos += iofma2
-	self.cmt = []
-	for i in xrange(self.nmt):
-	  self.cmt.append(self.kdiget_s(ipos,3))
-	  ipos += iwrd
-    elif ind == 2:
-      raise AssertionError("EXPORT not implemented")
 
 #----------------------------------------------------------------------#
 
-  def xsmrep(self, namt, ind, idir):
+  def index(self, namp, idir):
     """
     FIND A BLOCK (RECORD OR DIRECTORY) POSITION IN THE ACTIVE DIRECTORY
     AND RELATED EXTENTS.
     
     INPUT PARAMETERS:
-     NAMT   : CHARACTER*12 NAME OF THE REQUIRED BLOCK.
-     IND    : =1 SEARCH NAMT ; =2 SEARCH AND POSITIONNING IN AN EMPTY
-              SLOT OF THE ACTIVE DIRECTORY IF NAMT DOES NOT EXISTS.
+     NAMP   : NAME OF THE REQUIRED BLOCK.
      IDIR   : OFFSET OF ACTIVE DIRECTORY ON XSM FILE.
-     self : ADDRESS OF MEMORY-RESIDENT XSM STRUCTURE (BLOCK 2).
     
     OUTPUT PARAMETER:
-     III    : RETURN CODE. =0 IF THE BLOCK NAMED NAMT DOES NOT EXISTS;
-              =POSITION IN THE ACTIVE DIRECTORY EXTENT IF NAMT EXTSTS.
-              =0 OR 1 IF NAMT=' '.
+              -1 IF THE BLOCK NAMED namp DOES NOT EXISTS;
+              POSITION IN THE ACTIVE DIRECTORY EXTENT IF namp EXTSTS.
+              0 OR 1 IF namp=' '.
     """
-    i = ipos = ipos2 = irc = irc2 = 0
     if self.idir != idir:
       # SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
-      if (self.modif == 1):
-	self.xsmdir(2)
-      self.idir = idir
-      self.xsmdir(1)
-    if namt == "***HANDLE***":
+      self.importdir(idir)
+    if namp == "***HANDLE***":
       raise AssertionError("***HANDLE*** IS A RESERVED KEYWORD.")
-    namp = namt
-    if namp == " ":
+    elif namp == " ":
       namp = "***HANDLE***"
     ipos = -1
     if (self.nmt < iofmax):
@@ -454,11 +407,9 @@ class Block2:             # active directory resident-memory xsm structure
     if (self.idir != self.link):
       # RECOVER A NEW DIRECTORY EXTENT. */
       istart = self.link
-      if (self.modif == 1):
-	self.xsmdir(2)
       self.idir = istart
       while True:
-	self.xsmdir(1)
+	self.importdir()
 	if (self.nmt < iofmax):
 	  ipos = self.idir
 	if namp in self.cmt:
@@ -479,44 +430,44 @@ def browseXsm(xsm_list,elementList,ilev=1):
     elementList = unfolded xsm file ready to be used for a treeview
     ilev = integer depth
   """
-  for i,iplist in enumerate(xsm_list):
+  for i,xsm in enumerate(xsm_list):
     if ilev >= 50:
-      raise AssertionError("TOO MANY DIRECTORY LEVELS IN "+iplist.hname)
+      raise AssertionError("TOO MANY DIRECTORY LEVELS IN "+xsm.name)
     # retrieve info about current block
-    namxsm, myname, empty, lcm = iplist.xsminf()
+    namxsm, myname, empty = xsm.info()
     if empty:
       # switch to the next xsm object in xsm_list
       break
     # get next label
-    namt = iplist.xsmnxt()
+    namt = xsm.next()
     if "***HANDLE***" == namt:
       # keyword indicating a list item
-      ilong,itylcm = iplist.xsmlen(" ")
+      ilong,itylcm = xsm.length(" ")
       elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = "%08d"%(i+1),contentType = 0,content = Content(itylcm,-1,None,False,rawFormat="XSM")))
       if ilong == -1:
 	# up directory
-	browseXsm([iplist.xsmdid(" ")],elementList,ilev = ilev+1)
+	browseXsm([xsm.fetchdir(" ")],elementList,ilev = ilev+1)
       else:
 	# up list
-	browseXsm(iplist.xsmlid(" ",ilong),elementList,ilev = ilev+1)
+	browseXsm(xsm.fetchlist(" ",ilong),elementList,ilev = ilev+1)
     else:
       first = namt
       # cycle thru labels
       while True:
-	ilong,itylcm = iplist.xsmlen(namt)
+	ilong,itylcm = xsm.length(namt)
 	if ilong != 0 and ( itylcm == 0 or itylcm == 10 ):
 	  elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt.strip(),contentType = 0,content = Content(itylcm,-1,None,False,rawFormat="XSM")))
 	  if ilong == -1:
 	    # up directory
-	    browseXsm([iplist.xsmdid(namt)],elementList,ilev = ilev+1)
+	    browseXsm([xsm.fetchdir(namt)],elementList,ilev = ilev+1)
 	  else:
 	    # up list
-	    browseXsm(iplist.xsmlid(namt,ilong),elementList,ilev = ilev+1)
+	    browseXsm(xsm.fetchlist(namt,ilong),elementList,ilev = ilev+1)
 	elif ilong != 0 and itylcm <= 6:
 	  # get data
-	  content = Content(itylcm,ilong,iplist.xsmget(namt,itylcm),False,rawFormat="XSM")
+	  content = Content(itylcm,ilong,xsm.getblock(namt,itylcm),False,rawFormat="XSM")
 	  elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt.strip(),contentType = itylcm,content = content))
-	namt = iplist.xsmnxt(namt)
+	namt = xsm.next(namt)
 	if (namt == first):
 	  # cycle ended
 	  break

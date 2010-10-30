@@ -258,13 +258,8 @@ class MyTreeCtrl(wx.TreeCtrl):
     else:
       fExpand = fPass
     root = self.AddRoot(filePath)
-    #elementList = MyAsciiParser.asciiToElementList(filePath)
-    elementList = []
-    from MyXsmParser import *
-    with open(filePath,'rb') as myFile:
-      iplist = xsm(myFile)
-      browseXsm([iplist],elementList)
-    self.ConstructAsciiTree(elementList,fExpand,fSort)
+    elementList = MyParserTool.elementListFromFile(filePath)
+    self.BuildTree(elementList,fExpand,fSort)
   
   def getSummary(self,eltId):
     # getSummary aims to give a view of the first rank children, if relevant
@@ -461,7 +456,7 @@ class MyTreeCtrl(wx.TreeCtrl):
     c.Update()
     self.c.append(c)
 
-  def ConstructAsciiTree(self,elementList,fExpand,fSort):
+  def BuildTree(self,elementList,fExpand,fSort):
     root = self.GetRootItem()
     for e in elementList:
       if e.level == 1:

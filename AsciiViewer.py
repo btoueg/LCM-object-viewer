@@ -409,6 +409,8 @@ if __name__ == "__main__":
   except IndexError:
     if lastfile == '':
       lastfile = sys.path[0]+'/example/MultiCompoV4'
+  lastfile = '/home/melodie/Bureau/xsm_open/XSMCPO_0004'
+  #lastfile = sys.path[0]+'/example/MultiCompoV4'
   # launch main window
   app = MyApp(lastfile)
   app.MainLoop()

@@ -4,6 +4,42 @@
 # author : Benjamin Toueg
 # date : 30/10/10
 
+def elementListFromFile(filePath):
+  with open(filePath) as inputfile:
+    # read the 4 first character
+    head=inputfile.read(4)
+  if '$XSM' == head:
+    # if the first four characters are "$XSM" it's most certainly a XSM file
+    from MyXsmParser import xsmToElementList
+    return xsmToElementList(filePath)
+  else:
+    # we suppose it's an ASCII file
+    from MyAsciiParser import asciiToElementList
+    return asciiToElementList(filePath)
+
+#----------------------------------------------------------------------#
+
+lnword = 8
+
+def kdiget_s(myFile,iofset,length=1):
+  data = []
+  offset = iofset*lnword
+  myFile.seek(offset)
+  for i in xrange(length):
+    data.append(myFile.read(lnword)[:4])
+  return "".join(data)
+
+from array import array
+
+def kdiget(myFile,iofset,length=1, datatype = 'l'):
+  data = array(datatype)
+  offset = iofset*lnword
+  myFile.seek(offset)
+  data.fromfile(myFile,length)
+  return data.tolist()
+
+#----------------------------------------------------------------------#
+
 class LinkedListElement:
   def __init__(self,id,level,labelType,label,contentType,content):
     self.id = id
@@ -15,13 +51,15 @@ class LinkedListElement:
     self.table = None # MyTableColumn(self.label,self.content)
 
   def __str__(self):
-    s = str(self.id)+" "+str(self.level)+" "+str(self.labelType)+" "+str(self.label)+" "+str(self.contentType)
+    s = "==LinkedListElement=="
+    s += str(self.id)+" "+str(self.level)+" "+str(self.labelType)+" "+str(self.label)+" "+str(self.contentType)
     if self.content != None:
       s += " "+str(self.content.content)
     return s
 
 class Content:
-  def __init__(self,contentType,contentSize,content,bProcess):
+  def __init__(self,contentType,contentSize,content,bProcess,rawFormat="ASCII"):
+    self.rawFormat = rawFormat # "ASCII" or "XSM"
     self.contentType = contentType
     self.contentSize = contentSize
     self.content = content
@@ -31,7 +69,12 @@ class Content:
     
   def process(self):
     if not(self.processed):
-      self.content = getContent(self.contentType,self.contentSize,self.content)
+      if self.rawFormat == "ASCII":
+	self.content = getContent(self.contentType,self.contentSize,self.content)
+      elif self.rawFormat == "XSM":
+	self.content = getContent2(self.contentType,self.contentSize,self.content)
+      else:
+	raise AssertionError("Unexpected raw format "+self.rawFormat)
     self.processed = True
     return True
     
@@ -44,11 +87,11 @@ class Content:
     self.processed = True
 
 def getContent(contentType,contentSize,rhs):
-  #rhs = rhs[13:]
-  #rhs = rhs.lstrip(' ')
-  #rhs = rhs.replace('\n','')
+  rhs = rhs[13:]
+  rhs = rhs.lstrip(' ')
+  rhs = rhs.replace('\n','')
   if contentType==3:
-    #rhs=rhs[10*contentSize:]
+    rhs=rhs[10*contentSize:]
     rhs=rhs.replace('\n','')
     step = fancyStep(rhs)
     content = []
@@ -62,6 +105,27 @@ def getContent(contentType,contentSize,rhs):
     content=None
     if contentSize>0:
       content=rhs.split()
+  return content
+
+def getContent2(contentType,contentSize,rhs):
+  if contentType==3:
+    rhs=rhs.replace('\n','')
+    step = fancyStep(rhs)
+    content = []
+    if step == 0:
+      content = rhs.split()
+    else:
+      while rhs != '':
+	content.append(rhs[0:step].strip())
+	rhs = rhs[step:]
+  elif contentType==2:
+    content=None
+    if contentSize>0:
+      content= [ "%1.8E"%f for f in rhs ]
+  elif contentType==10:
+    content = []
+  else:
+    content = rhs
   return content
 
 def fancyStep(string):

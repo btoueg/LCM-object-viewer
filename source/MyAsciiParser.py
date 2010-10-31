@@ -5,7 +5,7 @@
 # date : 24/11/09
 
 import wx
-from MyParserTool import *
+from MyParserTool import LinkedListElement, Content
 
 def asciiToElementList(filePath):
   with open(filePath) as inputfile:

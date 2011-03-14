@@ -104,14 +104,14 @@ class xsm:
 
   def fetchchildren(self, namp, ilong):
     """
-    ACCESS A DAUGHTER ASSOCIATIVE TABLE IN A FATHER TABLE.
+    return children as an xsm list
     
     INPUT PARAMETERS:
       self : ADDRESS OF THE FATHER TABLE.
       NAMP : NAME OF THE DAUGHTER ASSOCIATIVE TABLE.
     
     OUTPUT PARAMETER:
-    xsm : ADDRESS OF THE DAUGHTER ASSOCIATIVE TABLE.
+      xsm : ADDRESS OF THE DAUGHTER ASSOCIATIVE TABLE.
     """
     my_block=self.ibloc
     i = my_block.index(namp, self.idir)
@@ -291,14 +291,14 @@ class Block:             # active directory resident-memory xsm structure
 
   def next(self,idir,namp = " "):
     """
-    FIND THE NAME OF THE NEXT BLOCK STORED IN THE ACTIVE DIRECTORY.
+    return THE NAME OF THE NEXT BLOCK STORED IN THE ACTIVE DIRECTORY.
     
     INPUT PARAMETERS:
-       NAMP : NAME OF THE CURRENT BLOCK. IF NAMP=' ' AT INPUT, FIND
+       namp : NAME OF THE CURRENT BLOCK. IF namp=' ' AT INPUT, FIND
               ANY NAME FOR ANY BLOCK STORED IN THIS DIRECTORY.
     
     OUTPUT PARAMETERS:
-       NAMP : NAME OF THE NEXT BLOCK. NAMP=' ' FOR AN EMPTY
+              NAME OF THE NEXT BLOCK OR ' ' FOR AN EMPTY
               DIRECTORY.
     """
     i = 0
@@ -404,7 +404,7 @@ class Block:             # active directory resident-memory xsm structure
 
 def browseXsm(xsm_list,elementList,ilev=1):
   """
-  recursive browsing of an xsm file
+  recursive browsing through an xsm file
     xsm_list = list of xsm objects
     elementList = unfolded xsm file ready to be used for a treeview
     ilev = integer depth
@@ -429,13 +429,13 @@ def browseXsm(xsm_list,elementList,ilev=1):
 	while True:
 	  ilong,itylcm = xsm.length(namt)
 	  if ilong != 0 and ( itylcm == 0 or itylcm == 10 ):
-	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt.strip(),contentType = 0,content = Content(itylcm,-1,None,False,rawFormat="XSM")))
+	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt,contentType = 0,content = Content(itylcm,-1,None,False,rawFormat="XSM")))
 	    #down to children
 	    browseXsm(xsm.fetchchildren(namt,ilong),elementList,ilev = ilev+1)
 	  elif ilong != 0 and itylcm <= 6:
 	    # get data
 	    content = Content(itylcm,ilong,xsm.getblock(namt,itylcm),False,rawFormat="XSM")
-	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt.strip(),contentType = itylcm,content = content))
+	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt,contentType = itylcm,content = content))
 	  namt = xsm.next(namt)
 	  if (namt == first):
 	    # cycle ended

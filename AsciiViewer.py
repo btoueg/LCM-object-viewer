@@ -6,15 +6,16 @@
 
 # FIXME : table view overwrites standard view in edition ref-case
 
+import os,sys,time
+import ConfigParser
+from operator import isSequenceType
+
+sys.path.append(sys.path[0]+'/source')
+
 try:
     import wx
 except ImportError:
     raise ImportError,"The wxPython module is required to run this program"
-
-import os,sys,time
-from operator import isSequenceType
-
-sys.path.append(sys.path[0]+'/source')
 
 import MyAsciiParser
 from MySheet import MySheet
@@ -191,12 +192,14 @@ class MainWindow(wx.Frame):
     elapsed = end - start
     self.SetStatusText(filePath+" loaded in "+str(elapsed)+"s")
     # save last opened file in configuration file
-    import ConfigParser
     config = ConfigParser.RawConfigParser()
     config.read(os.path.expanduser('~/.asciiviewer.cfg'))
     config.set('mainconfig', 'lastfile', filePath)
     # Writing our configuration file to 'config.cfg'
-    config.write(open(os.path.expanduser('~/.asciiviewer.cfg'), 'wb'))
+    try:
+      config.write(open(os.path.expanduser('~/.asciiviewer.cfg'), 'wb'))
+    except Exception as error:
+      print type(error),':',error
     self.Update()
     self.tree.bind(self)
     self.tree.SetFocus()
@@ -371,10 +374,12 @@ class MyApp(wx.App):
     wx.App.__init__(self)
 
   def OnInit(self):
-    import ConfigParser
     config = ConfigParser.RawConfigParser()
     config.read(os.path.expanduser('~/.asciiviewer.cfg'))
-    splash = config.getboolean('mainconfig', 'splash')
+    try:
+      splash = config.getboolean('mainconfig', 'splash')
+    except ConfigParser.NoOptionError:
+      splash = True
     if splash:
       MySplash = MySplashScreen(None, self.LaunchMainWindow)
       MySplash.Show()
@@ -393,7 +398,6 @@ class MyApp(wx.App):
 
 if __name__ == "__main__":
   # read the configuration file config.cfg
-  import ConfigParser
   config = ConfigParser.RawConfigParser()
   configFilePath = os.path.expanduser('~/.asciiviewer.cfg')
   if not(os.path.isfile(configFilePath)):
@@ -403,12 +407,15 @@ if __name__ == "__main__":
       config.write(configFile)
   config.read(configFilePath)
   # get last opened file from config.cfg, otherwise use example file
-  lastfile = config.get('mainconfig', 'lastfile')
+  lastfile = sys.path[0]+'/example/MultiCompoV4'
+  try:
+    lastfile = config.get('mainconfig', 'lastfile')
+  except ConfigParser.NoOptionError:
+    pass
   try:
     lastfile = sys.argv[1]
   except IndexError:
-    if lastfile == '':
-      lastfile = sys.path[0]+'/example/MultiCompoV4'
+    pass
   # launch main window
   app = MyApp(lastfile)
   app.MainLoop()

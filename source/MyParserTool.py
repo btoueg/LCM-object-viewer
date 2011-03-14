@@ -24,7 +24,7 @@ class LinkedListElement:
     self.id = id
     self.level = level
     self.labelType = labelType
-    self.label = str(label)
+    self.label = str(label).strip()
     self.contentType = contentType
     self.content = content
     self.table = None # MyTableColumn(self.label,self.content)

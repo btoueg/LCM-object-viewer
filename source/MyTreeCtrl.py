@@ -245,8 +245,14 @@ class MyTreeCtrl(wx.TreeCtrl):
   def recoverAsciiFile(self,filePath):
     config = ConfigParser.RawConfigParser()
     config.read(os.path.expanduser('~/.asciiviewer.cfg'))
-    sort = config.getboolean('mainconfig', 'sort')
-    expand = config.getboolean('mainconfig', 'expand')
+    try:
+      sort = config.getboolean('mainconfig', 'sort')
+    except ConfigParser.NoOptionError:
+      sort = False
+    try:
+      expand = config.getboolean('mainconfig', 'expand')
+    except ConfigParser.NoOptionError:
+      expand = False
     def fPass(item):
       pass
     if sort:

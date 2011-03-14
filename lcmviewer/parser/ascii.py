@@ -4,8 +4,7 @@
 # author : Benjamin Toueg
 # date : 24/11/09
 
-import wx
-from MyParserTool import LinkedListElement, Content
+from . import LinkedListElement, Content
 
 def asciiToElementList(filePath):
   with open(filePath) as inputfile:
@@ -101,95 +100,13 @@ def asciiToElementListVersion3(readablefile):
     id=id+1
   return elementList
 
-#def asciiToTree(filePath,tree):
-  ## this function was designed to be a faster alternative to asciiToElementList and then ConstructAsciiTree
-  ## but it's not that fast
-  ## we make the file a 1 line string and we split it according to <- and ->
-  #with open(filePath) as inputfile:
-    ##readablefile=inputfile.read().replace(' 4\n',' 4 \n').replace('\n','').split('->')
-    #readablefile=inputfile.read().split('->')
-
-  ##elementList=[]
-  #previousLevel = 0
-  #root = tree.GetRootItem()
-  #previousNode = root
-  #parent = root
-  #parentLevel = 0
-  #id = 0
-  #for r in readablefile:
-    #if r != '':
-      #pos_key=r.split('<-')
-      #if len(pos_key) != 2:
-        #print 'Problem with readable file'
-        #print r
-      ## process the left part of <-
-      #pos_key[0] = pos_key[0].split()
-      #level = int(pos_key[0][0])
-      #if level < 0:
-        ## we are climbing down the tree
-        #tree.SortChildren(parent)
-        #if parentLevel > 1 and tree.GetChildrenCount(parent) > 10:
-          #pass
-        #else:
-          #tree.Expand(parent)
-        #parent = tree.GetItemParent(parent)
-        #parentLevel -= 1
-        #previousLevel = level
-      #else:
-        #labelType = int(pos_key[0][1])
-        #contentType = int(pos_key[0][2])
-        #contentSize = int(pos_key[0][3])
-        ## process the right part <-
-        #if labelType != 0:
-          #pos_key[1] = pos_key[1].lstrip()
-        #label = pos_key[1][0:12].strip()
-        #pos_key[1] = pos_key[1][13:]
-        #pos_key[1] = pos_key[1].lstrip(' ')
-        #pos_key[1] = pos_key[1].replace('\n','')
-        #if contentSize!=0:
-          #if contentType==3:
-            #pos_key[1]=pos_key[1][10*contentSize:]
-            #pos_key[1]=pos_key[1].replace('\n','')
-            #step = fancyStep(pos_key[1])
-            #content = []
-            #if step == 0:
-              #content = pos_key[1].split()
-            #else:
-              #while pos_key[1] != '':
-                #content.append(pos_key[1][0:step].strip())
-                #pos_key[1] = pos_key[1][step:]
-          #else:
-            #content=None
-            #if contentSize>0:
-              #content=pos_key[1].split()
-          #if previousLevel < 0: # we know that level >= 0.
-            #parent = tree.GetItemParent(previousNode)
-            #while tree.GetPyData(parent).level >= level:
-              #parent = tree.GetItemParent(parent)
-              #if parent == root:
-                #break
-          #elif level > previousLevel:
-            ## we are climbing up the tree
-            #parent = previousNode
-            #parentLevel = previousLevel
-          ## create a LinkedListElement
-          #element = LinkedListElement(id,level,labelType,label,contentType,content)
-          #node = tree.AppendItem(parent, element.label, data=wx.TreeItemData(element))
-          ##elementList.append(element)
-          #id+=1
-          #previousLevel = level
-          #previousNode = node
-  #tree.SortChildren(root)
-  #tree.Expand(root)
-  ##return elementList
-
-if __name__ == "__main__":
-  import sys
-  try:
-    myFilePath = sys.argv[1]
-  except:
-    myFilePath="../example/MultiCompoV4"
-  elementList=asciiToElementList(myFilePath)
-  for e in elementList:
-    if True:#e.level < 2:
-      print e
+#if __name__ == "__main__":
+  #import sys
+  #try:
+    #myFilePath = sys.argv[1]
+  #except:
+    #myFilePath="../../example/MultiCompoV4"
+  #elementList=asciiToElementList(myFilePath)
+  #for e in elementList:
+    #if True:#e.level < 2:
+      #print e

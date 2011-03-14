@@ -10,11 +10,11 @@ def elementListFromFile(filePath):
     head=inputfile.read(4)
   if '$XSM' in head:
     # if the first four characters are "$XSM" it's most certainly a XSM file
-    from MyXsmParser import xsmToElementList
+    from xsm import xsmToElementList
     return xsmToElementList(filePath)
   else:
     # we suppose it's an ASCII file
-    from MyAsciiParser import asciiToElementList
+    from ascii import asciiToElementList
     return asciiToElementList(filePath)
 
 #----------------------------------------------------------------------#

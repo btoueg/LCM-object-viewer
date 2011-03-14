@@ -8,7 +8,7 @@
 
 from array import array
 from copy import copy
-from MyParserTool import LinkedListElement, Content
+from . import LinkedListElement, Content
 
 iofmax = 30
 iwrd = 3
@@ -442,17 +442,3 @@ def browseXsm(xsm_list,elementList,ilev=1):
 	    break
 
 #----------------------------------------------------------------------#
-
-if __name__ == "__main__":
-  import sys
-  try:
-    filePath = sys.argv[1]
-  except:
-    filePath="/home/melodie/Bureau/xsm_open/XSMCPO_0004"
-  elementList = []
-  with open(filePath,'rb') as myFile:
-    xsm_handle = xsm(myFile)
-    browseXsm([xsm_handle],elementList)
-  for e in elementList:
-    print e
-

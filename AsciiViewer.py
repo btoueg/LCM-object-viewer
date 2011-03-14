@@ -7,24 +7,21 @@
 # FIXME : table view overwrites standard view in edition ref-case
 
 import os,sys,time
-import ConfigParser
 from operator import isSequenceType
-
-sys.path.append(sys.path[0]+'/source')
 
 try:
     import wx
 except ImportError:
     raise ImportError,"The wxPython module is required to run this program"
 
-import MyAsciiParser
-from MySheet import MySheet
-from MyTreeCtrl import MyTreeCtrl
-from MyMenuBar import *
-from MyCalculation import MyCalculation
-from MyFilterPanel import MyFilterPanel
-from MyTable import MyTableColumn, MySummaryTable
-from MyFindReplaceDialog import MyFindReplaceDialog
+import lcmviewer
+from lcmviewer import CONFIG
+from lcmviewer.MySheet import MySheet
+from lcmviewer.MyTreeCtrl import MyTreeCtrl
+from lcmviewer.MyMenuBar import *
+from lcmviewer.MyFilterPanel import MyFilterPanel
+from lcmviewer.MyTable import MyTableColumn, MySummaryTable
+from lcmviewer.MyFindReplaceDialog import MyFindReplaceDialog
 
 ID_BUTTON = 100
 
@@ -192,14 +189,8 @@ class MainWindow(wx.Frame):
     elapsed = end - start
     self.SetStatusText(filePath+" loaded in "+str(elapsed)+"s")
     # save last opened file in configuration file
-    config = ConfigParser.RawConfigParser()
-    config.read(os.path.expanduser('~/.asciiviewer.cfg'))
-    config.set('mainconfig', 'lastfile', filePath)
-    # Writing our configuration file to 'config.cfg'
-    try:
-      config.write(open(os.path.expanduser('~/.asciiviewer.cfg'), 'wb'))
-    except Exception as error:
-      print type(error),':',error
+    CONFIG['lastfile']=filePath
+    lcmviewer.saveConfig()
     self.Update()
     self.tree.bind(self)
     self.tree.SetFocus()
@@ -374,13 +365,7 @@ class MyApp(wx.App):
     wx.App.__init__(self)
 
   def OnInit(self):
-    config = ConfigParser.RawConfigParser()
-    config.read(os.path.expanduser('~/.asciiviewer.cfg'))
-    try:
-      splash = config.getboolean('mainconfig', 'splash')
-    except ConfigParser.NoOptionError:
-      splash = True
-    if splash:
+    if CONFIG["splash"]:
       MySplash = MySplashScreen(None, self.LaunchMainWindow)
       MySplash.Show()
     else:
@@ -397,25 +382,10 @@ class MyApp(wx.App):
 #----------------------------------------------------------------------#
 
 if __name__ == "__main__":
-  # read the configuration file config.cfg
-  config = ConfigParser.RawConfigParser()
-  configFilePath = os.path.expanduser('~/.asciiviewer.cfg')
-  if not(os.path.isfile(configFilePath)):
-    # if config.cfg does not exist, create if from default.cfg
-    config.read(sys.path[0]+'/default.cfg')
-    with open(configFilePath, 'wb') as configFile:
-      config.write(configFile)
-  config.read(configFilePath)
-  # get last opened file from config.cfg, otherwise use example file
-  lastfile = sys.path[0]+'/example/MultiCompoV4'
-  try:
-    lastfile = config.get('mainconfig', 'lastfile')
-  except ConfigParser.NoOptionError:
-    pass
   try:
     lastfile = sys.argv[1]
   except IndexError:
-    pass
+    lastfile = CONFIG["lastfile"]
   # launch main window
   app = MyApp(lastfile)
   app.MainLoop()

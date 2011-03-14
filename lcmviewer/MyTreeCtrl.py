@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
 
-import os,sys,ConfigParser
+import os,sys
 from operator import isSequenceType
 
 import wx
 
-import MyAsciiParser, MyParserTool
-from MyParserTool import LinkedListElement
+from lcmviewer import CONFIG
+import parser
 from MyCalculation import MyMicroLib, MyCalculation
 from MyRefcase import MyRefcase
 
@@ -14,7 +14,7 @@ try:
   import ROOT
   from ROOT import gROOT, TCanvas,TH2F
 except ImportError:
-  print "ROOT couldn't be imported, continuing anyway..."
+  pass
 
 class MyTreeCtrl(wx.TreeCtrl):
   def __init__(self,parent):
@@ -243,28 +243,18 @@ class MyTreeCtrl(wx.TreeCtrl):
     return lastVisibleChild
 
   def recoverAsciiFile(self,filePath):
-    config = ConfigParser.RawConfigParser()
-    config.read(os.path.expanduser('~/.asciiviewer.cfg'))
-    try:
-      sort = config.getboolean('mainconfig', 'sort')
-    except ConfigParser.NoOptionError:
-      sort = False
-    try:
-      expand = config.getboolean('mainconfig', 'expand')
-    except ConfigParser.NoOptionError:
-      expand = False
     def fPass(item):
       pass
-    if sort:
+    if CONFIG["sort"]:
       fSort = self.SortChildren
     else:
       fSort = fPass
-    if expand:
+    if CONFIG["expand"]:
       fExpand = self.Expand
     else:
       fExpand = fPass
     root = self.AddRoot(filePath)
-    elementList = MyParserTool.elementListFromFile(filePath)
+    elementList = parser.elementListFromFile(filePath)
     self.BuildTree(elementList,fExpand,fSort)
   
   def getSummary(self,eltId):
@@ -302,7 +292,7 @@ class MyTreeCtrl(wx.TreeCtrl):
     for cId in calcIdList:
       c = self.GetPyData(cId)
       ical = int(c.label)
-      muplet = MyParserTool.comupl(nvp,nptot,ical,ncals,debarb,arbval)
+      muplet = parser.comupl(nvp,nptot,ical,ncals,debarb,arbval)
       c.contentType = 1
       c.content = muplet
       stateVector  = self.getChildData(cId, "STATE-VECTOR")
@@ -347,7 +337,7 @@ class MyTreeCtrl(wx.TreeCtrl):
         eltXSList = self.getChildrenData(cId)
         for eltXS in eltXSList:
           dicoRefcase.addXS(c.label,eltXS)
-        eltDens = LinkedListElement(id=-1,level=-1,labelType=-1,label='DENSITY',contentType=2,content=[isotopeDensList[isotopeNameList.index(c.label)]])
+        eltDens = parser.LinkedListElement(id=-1,level=-1,labelType=-1,label='DENSITY',contentType=2,content=[isotopeDensList[isotopeNameList.index(c.label)]])
         dicoRefcase.addXS(c.label,eltDens)
     dicoRefcase.createUserComputedMacroIsotope()
     dicoRefcase.computeMacro()

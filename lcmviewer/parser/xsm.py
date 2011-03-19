@@ -10,8 +10,24 @@ from array import array
 from copy import copy
 from . import LinkedListElement, Content
 
-iofmax = 30
-iwrd = 3
+MAX_NUMBER_OF_SIBLINGS = 30
+WORD_OFFSET = 3
+WORD_LENGTH_CHOICE = {
+  '32bits': 4,
+  '64bits': 8
+}
+TYPE_CHOICE = {
+  '32bits': {
+    'integer' : 'i',
+    'real'    : 'f',
+    'double'  : 'd'
+  },
+  '64bits': {
+    'integer' : 'l',
+    'real'    : 'd',
+    'double'  : 'd'
+  }
+}
 
 def xsmToElementList(filePath):
   with open(filePath,'rb') as inputfile:
@@ -41,11 +57,11 @@ class xsm:
   ANY BLOCK CAN CONTAIN A SUB-DIRECTORY IN ORDER TO CREATE A HIERAR-
   CHICAL STRUCTURE.
   """
-  def __init__(self, myFile, nbits = '32bits'):
+  def __init__(self, file, nbits = '32bits'):
     """
     OPEN AN EXISTING XSM FILE. VECTORIAL VERSION.
     INPUT PARAMETERS:
-       myFile : FILE HANDLE OF THE XSM FILE.
+       file : FILE HANDLE OF THE XSM FILE.
        nbits : encoding of the XSM file
     
     THE ACTIVE DIRECTORY IS MADE OF TWO BLOCKS LINKED TOGETHER. A xsm block
@@ -54,27 +70,26 @@ class xsm:
     THE SAME block.
     """
     # string
-    self.name = myFile.name   # name of the xsm file
-    # int_32
-    self.idir = 0             # offset of active directory on xsm file
-    self.maxoffset = 0        # maximum address on xsm file
+    self.name = file.name   # name of the xsm file
     # Block
-    self.ibloc = Block(myFile,nbits) # block obj (see class definiton below)
+    self.ibloc = Block(file,nbits) # block obj (see class definiton below)
     my_block = self.ibloc
     # recover the root directory
     head = my_block.kdiget_s(0)
     if head[:4] != "$XSM":
       raise AssertionError("WRONG HEADER ON XSM FILE '%s'."%self.name)
-    self.maxoffset = my_block.kdiget(1).pop() 
-    self.idir = my_block.idir = my_block.kdiget(2).pop()
-    my_block.importdir()
+    self.maxoffset = my_block.read_int()
+    # int_32
+    self.offset = my_block.offset = my_block.read_int()
+    self.maxoffset = 0        # maximum address on xsm file
+    my_block.step_into()
 
 #----------------------------------------------------------------------#
 
   def __str__(self):
     s = "== xsm obj ==\n"
     s += "name "+str(self.name)+"\n"
-    s += "idir "+str(self.idir)+"\n"
+    s += "offset "+str(self.offset)+"\n"
     s += "maxoffset "+str(self.maxoffset)+"\n"
     s += "ibloc\n"+str(self.ibloc)+"\n"
     s += "============"
@@ -82,27 +97,38 @@ class xsm:
 
 #----------------------------------------------------------------------#
 
-  def info(self):
-    return self.ibloc.info(self.idir)
+  def sync(self):
+    self.ibloc.offset = self.offset
 
 #----------------------------------------------------------------------#
 
-  def length(self,namp):
-    return self.ibloc.length(self.idir,namp)
+  def step_into(self):
+    self.ibloc.step_into(self.offset)
 
 #----------------------------------------------------------------------#
 
-  def next(self,namp = " "):
-    return self.ibloc.next(self.idir,namp)
+  def has_siblings(self):
+    return (self.ibloc.number_of_siblings > 0)
 
 #----------------------------------------------------------------------#
 
-  def getblock(self, namp, itylcm = 1):
-    return self.ibloc.getblock(self.idir,namp,itylcm)
+  def get_description(self,name):
+    return self.ibloc.get_description(self.offset,name)
 
 #----------------------------------------------------------------------#
 
-  def fetchchildren(self, namp, ilong):
+  def get_next_sibling_name(self,name = " "):
+    self.sync()
+    return self.ibloc.get_next_sibling_name(name)
+
+#----------------------------------------------------------------------#
+
+  def read_block(self, name, type = 1):
+    return self.ibloc.read_block(self.offset,name,type)
+
+#----------------------------------------------------------------------#
+
+  def fetchchildren(self, name, length):
     """
     return children as an xsm list
     
@@ -114,72 +140,61 @@ class xsm:
       xsm : ADDRESS OF THE DAUGHTER ASSOCIATIVE TABLE.
     """
     my_block=self.ibloc
-    i = my_block.index(namp, self.idir)
-    lenold = my_block.jlon[i]
-    ityold = my_block.jtyp[i]
-    idir = my_block.iofs[i]
+    i = my_block.index(name, self.offset)
+    length = my_block.sibling_lengths[i]
+    type = my_block.sibling_types[i]
+    offset = my_block.sibling_offsets[i]
     xsm_list = []
-    if (lenold,ityold) == (ilong,10):
-      for idir in my_block.kdiget(idir, ilong):
+    if (length,type) == (length,10):
+      for offset in my_block.kdiget(offset, length):
 	xsm = copy(self)
-	xsm.idir = idir
+	xsm.offset = offset
 	xsm_list.append(xsm)
-    elif (lenold,ityold) == (-1,0):
+    elif (length,type) == (-1,0):
       xsm = copy(self)
-      xsm.idir  = idir
+      xsm.offset  = offset
       xsm_list = [xsm]
     else:
-      raise AssertionError("INVALID LENGTH,TYPE (%d,%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(ilong,ityold,self.name))
+      raise AssertionError("INVALID LENGTH,TYPE (%d,%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(length,type,self.name))
     return xsm_list
 
 #----------------------------------------------------------------------#
 
 class Block:             # active directory resident-memory xsm structure
-  def __init__(self,myFile,nbits):
+  def __init__(self,file,nbits):
     # file
-    self.ifile = myFile  # xsm (kdi) file handle
-    if nbits == '32bits':
-      self.lnword = 4
-      self.typedico = { 'integer' : 'i',
-			'real'    : 'f',
-			'double'  : 'd'
-		      }
-    elif nbits == '64bits':
-      self.lnword = 8
-      self.typedico = { 'integer' : 'l',
-			'real'    : 'd',
-			'double'  : 'd'
-		      }
-    else:
-      raise AssertionError('32 or 64 bits ?')
+    self.ifile = file  # xsm (kdi) file handle
+    # dict
+    self.typedico = TYPE_CHOICE[nbits]
     # int32
-    self.idir = 0         # offset of active directory on xsm file
-    self.nmt = 0          # number of nodes on the active directory extent
-    self.link = 0         # offset of the next directory extent
-    self.iroot = 0        # offset of any parent directory extent
+    self.lnword = WORD_LENGTH_CHOICE[nbits]
+    self.offset = 1
+    self.number_of_siblings = 0
+    self.offset_next_sibling = 0
+    self.offset_parent = 0
     # string
-    self.name = ""        # name of the active directory. ='/' for the root level
+    self.name = ""        # "/" for the root level
     # int_32 list
-    self.iofs = []        # offset list (position of the first element of each block)
-    self.jlon = []        # length of each record (jlong=0 for a directory) that belong to the active directory extent
-    self.jtyp = []        # type of each block that belong to the active directory extent
+    self.sibling_offsets = []
+    self.sibling_lengths = []
+    self.sibling_types = []
     # string list
-    self.cmt = []         # names list of each block (record or directory) that belong to the active directory extent
+    self.sibling_names = []
 
 #----------------------------------------------------------------------#
 
   def __str__(self):
     s =  "== Block obj ==\n"
     s += "kdi_file "+str(self.ifile)+"\n"
-    s += "offset of active directory on xsm file "+str(self.idir)+"\n"
-    s += "number of nodes on the active directory extent "+str(self.nmt)+"\n"
-    s += "offset of the next directory extent "+str(self.link)+"\n"
-    s += "offset of any parent directory extent "+str(self.iroot)+"\n"
+    s += "offset of active directory on xsm file "+str(self.offset)+"\n"
+    s += "number of nodes on the active directory extent "+str(self.number_of_siblings)+"\n"
+    s += "offset of the next directory extent "+str(self.offset_next_sibling)+"\n"
+    s += "offset of any parent directory extent "+str(self.offset_parent)+"\n"
     s += "name of the active directory "+str(self.name)+"\n"
-    s += "offset list (position of the first element of each block) "+str(self.iofs)+"\n"
-    s += "length of each record (jlong=0 for a directory) that belong to the active directory extent "+str(self.jlon)+"\n"
-    s += "type of each block that belong to the active directory extent "+str(self.jtyp)+"\n"
-    s += "names list of each block (record or directory) that belong to the active directory extent "+str(self.cmt)+"\n"
+    s += "offset list (position of the first element of each block) "+str(self.sibling_offsets)+"\n"
+    s += "length of each record (jlong=0 for a directory) that belong to the active directory extent "+str(self.sibling_lengths)+"\n"
+    s += "type of each block that belong to the active directory extent "+str(self.sibling_types)+"\n"
+    s += "names list of each block (record or directory) that belong to the active directory extent "+str(self.sibling_names)+"\n"
     s += "================"
     return s
 
@@ -208,93 +223,68 @@ class Block:             # active directory resident-memory xsm structure
     data.fromfile(self.ifile,size)
     return data.tolist()
 
+  def read_block(self, offset, name, type = 1):
+    i = self.index(name, offset)
+    if i >= 0:
+      if type == 1:
+	data = self.kdiget(self.sibling_offsets[i], self.sibling_lengths[i])
+      elif type == 3:
+	data = self.kdiget_s(self.sibling_offsets[i], self.sibling_lengths[i])
+      else:
+	data = self.kdiget(self.sibling_offsets[i], self.sibling_lengths[i], 'real')
+    else:
+      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(name,self.name,self.ifile.name))
+    return data
+
+  def read_int(self):
+    item = self.kdiget(self.offset).pop()
+    self.offset += 1
+    return item
+    
+  def read_word(self):
+    item = self.kdiget_s(self.offset,3)
+    self.offset += WORD_OFFSET
+    return item
+  
+  def read_words(self,n):
+    items = []
+    for i in xrange(n):
+      items.append(self.read_word())
+    return items
+
 #----------------------------------------------------------------------#
 
-  def importdir(self, idir = -1):
-    """
-    import a directory
-    """
-    if idir > -1:
-      self.idir = idir
-    ipos = self.idir
-    hbuf = self.kdiget_s(ipos)
+  def step_into(self, offset = -1):
+    if offset > -1:
+      self.offset = offset
+    hbuf = self.kdiget_s(self.offset)
     if hbuf[:4] != "$$$$":
       raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
-    ipos += 1
-    iofma2 = self.kdiget(ipos).pop()
-    ipos += 1
-    self.nmt = self.kdiget(ipos).pop()
-    if self.nmt > iofmax:
-      raise AssertionError("UNABLE TO RECOVER DIRECTORY.")
-    ipos += 1
-    self.link = self.kdiget(ipos).pop()
-    ipos += 1
-    self.iroot = self.kdiget(ipos).pop()
-    ipos += 1
-    self.name = self.kdiget_s(ipos,3)
-    if self.nmt != 0:
-      ipos += iwrd
-      self.iofs = self.kdiget(ipos,self.nmt)
-      ipos += iofma2
-      self.jlon = self.kdiget(ipos,self.nmt)
-      ipos += iofma2
-      self.jtyp = self.kdiget(ipos,self.nmt)
-      ipos += iofma2
-      self.cmt = []
-      for i in xrange(self.nmt):
-	self.cmt.append(self.kdiget_s(ipos,3))
-	ipos += iwrd
+    self.offset += 1
+    leap = self.read_int()
+    self.number_of_siblings = self.read_int()
+    if self.number_of_siblings > MAX_NUMBER_OF_SIBLINGS:
+      raise AssertionError("Number of siblings (%s) exceeds limits (%s)."%(self.number_of_siblings,MAX_NUMBER_OF_SIBLINGS))
+    self.offset_next_sibling = self.read_int()
+    self.offset_parent = self.read_int()
+    self.name = self.read_word()
+    if self.number_of_siblings != 0:
+      self.sibling_offsets = self.kdiget(self.offset,self.number_of_siblings)
+      self.offset += leap
+      self.sibling_lengths = self.kdiget(self.offset,self.number_of_siblings)
+      self.offset += leap
+      self.sibling_types = self.kdiget(self.offset,self.number_of_siblings)
+      self.offset += leap
+      self.sibling_names = self.read_words(self.number_of_siblings)
 
 #----------------------------------------------------------------------#
 
-  def info(self,idir):
-    """
-    RECOVER GLOBAL INFORMATIONS RELATED TO AN XSM FILE.
-    
-    OUTPUT PARAMETERS:
-     self.name : NAME OF THE XSM FILE.
-     my_block.name : NAME OF THE ACTIVE DIRECTORY.
-     empty : =.TRUE. IF THE ACTIVE DIRECTORY IS EMPTY.
-    """
-    if (self.idir != idir):
-      # SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
-      self.importdir(idir)
-    empty = (self.nmt == 0)
-    return self.ifile.name, self.name, empty
-
-#----------------------------------------------------------------------#
-
-  def length(self,idir,namp):
-    """
-    return length and type of a block, return 0 and 99 if the block is not found
-      namp = name of the current block
-    OUTPUT PARAMETERS:
-      ilong : NUMBER OF INFORMATION ELEMENTS STORED IN THE CURRENT BLOCK.
-              ILONG=-1 IS RETURNED FOR A SCALAR DIRECTORY.
-              ILONG=0 IF THE BLOCK DOES NOT EXISTS.
-      itype : TYPE OF INFORMATION ELEMENTS STORED IN THE CURRENT BLOCK.
-              0: DIRECTORY                1: INTEGER
-              2: SINGLE PRECISION         3: CHARACTER*4
-              4: DOUBLE PRECISION         5: LOGICAL
-              6: COMPLEX                 99: UNDEFINED
-    """
-    i = self.index(namp, idir)
-    if (i > -1):
-      ilong = self.jlon[i]
-      itype = self.jtyp[i]
-    else:
-      ilong = 0
-      itype = 99
-    return ilong, itype
-
-#----------------------------------------------------------------------#
-
-  def next(self,idir,namp = " "):
+  def get_next_sibling_name(self,name = " "):
     """
     return THE NAME OF THE NEXT BLOCK STORED IN THE ACTIVE DIRECTORY.
     
     INPUT PARAMETERS:
-       namp : NAME OF THE CURRENT BLOCK. IF namp=' ' AT INPUT, FIND
+       name : NAME OF THE CURRENT BLOCK. IF name=' ' AT INPUT, FIND
               ANY NAME FOR ANY BLOCK STORED IN THIS DIRECTORY.
     
     OUTPUT PARAMETERS:
@@ -302,58 +292,27 @@ class Block:             # active directory resident-memory xsm structure
               DIRECTORY.
     """
     i = 0
-    if namp == " ":
-      if self.idir != idir:
-	#SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
-	self.importdir(idir)
-      i = min(self.nmt,0)
+    if name == " ":
+      self.step_into(self.offset)
+      i = min(self.number_of_siblings,0)
     else:
-      i = self.index(namp, idir)+1
-    if i == -1 and namp == " ":
-      #EMPTY DIRECTORY
+      i = self.index(name, self.offset)+1
+    if i == -1 and name == " ":
       raise AssertionError("THE ACTIVE DIRECTORY '%s' OF THE XSM FILE '%s' IS EMPTY."%(self.name,self.ifile.name))
     elif i == -1:
-      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,self.name,self.ifile.name))
-    elif i < self.nmt:
-      namp = self.cmt[i]
-      return namp
-    #SWITCH TO THE NEXT DIRECTORY.
-    if self.idir != self.link:
-      #RECOVER THE NEXT DIRECTORY.
-      self.importdir(self.link)
-    namp = self.cmt[0]
-    if (namp == "***HANDLE***"):
-      namp = " "
-    return namp
-
-#----------------------------------------------------------------------#
-
-  def getblock(self, idir, namp, itylcm = 1):
-    """
-    READ A BLOCK FROM THE XSM FILE
-    
-    INPUT PARAMETERS:
-      NAMP  : NAME OF THE CURRENT BLOCK.
-      itylcm : type of data to read
-    
-    OUTPUT PARAMETER:
-      data : INFORMATION ELEMENTS. DIMENSION DATA2(ILONG)
-    """
-    i = self.index(namp, idir)
-    if i >= 0:
-      if itylcm == 1:
-	data = self.kdiget(self.iofs[i], self.jlon[i])
-      elif itylcm == 3:
-	data = self.kdiget_s(self.iofs[i], self.jlon[i])
-      else:
-	data = self.kdiget(self.iofs[i], self.jlon[i], 'real')
+      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(name,self.name,self.ifile.name))
+    elif i < self.number_of_siblings:
+      name = self.sibling_names[i]
     else:
-      raise AssertionError("UNABLE TO FIND BLOCK '%s' INTO DIRECTORY '%s' IN THE XSM FILE '%s'."%(namp,self.name,self.ifile.name))
-    return data
+      self.step_into(self.offset_next_sibling)
+      name = self.sibling_names[0]
+      if (name == "***HANDLE***"):
+	name = " "
+    return name
 
 #----------------------------------------------------------------------#
 
-  def index(self, namp, idir):
+  def index(self, name, offset):
     """
     FIND A BLOCK (RECORD OR DIRECTORY) POSITION IN THE ACTIVE DIRECTORY
     AND RELATED EXTENTS.
@@ -363,42 +322,54 @@ class Block:             # active directory resident-memory xsm structure
      IDIR   : OFFSET OF ACTIVE DIRECTORY ON XSM FILE.
     
     OUTPUT PARAMETER:
-              -1 IF THE BLOCK NAMED namp DOES NOT EXISTS;
-              POSITION IN THE ACTIVE DIRECTORY EXTENT IF namp EXTSTS.
-              0 OR 1 IF namp=' '.
+              -1 IF THE BLOCK NAMED name DOES NOT EXISTS;
+              POSITION IN THE ACTIVE DIRECTORY EXTENT IF name EXTSTS.
+              0 OR 1 IF name=' '.
     """
-    if self.idir != idir:
-      # SWITCH TO THE CORRECT ACTIVE DIRECTORY (BLOCK 2)
-      self.importdir(idir)
-    if namp == "***HANDLE***":
+    self.step_into(offset)
+    if name == "***HANDLE***":
       raise AssertionError("***HANDLE*** IS A RESERVED KEYWORD.")
-    elif namp == " ":
-      namp = "***HANDLE***"
-    ipos = -1
-    if (self.nmt < iofmax):
-      ipos = self.idir
-    if (self.nmt == 0):
-      raise AssertionError("BLOCK IS EMPTY")
-    if namp in self.cmt:
-      # THE BLOCK ALREADY EXISTS
-      return self.cmt.index(namp)
-    # THE BLOCK NAMP DOES NOT EXISTS IN THE ACTIVE DIRECTORY EXTENT. WE
-    # SEARCH IN OTHER EXTENTS THAT BELONG TO THE ACTIVE DIRECTORY.
-    if (self.idir != self.link):
-      # RECOVER A NEW DIRECTORY EXTENT. */
-      istart = self.link
-      self.idir = istart
+    elif name == " ":
+      name = "***HANDLE***"
+    if (self.number_of_siblings == 0):
+      raise AssertionError("BLOCK '%s' IS EMPTY"%name)
+    if name in self.sibling_names:
+      return self.sibling_names.index(name)
+    if (self.offset != self.offset_next_sibling):
+      istart = self.offset_next_sibling
       while True:
-	self.importdir()
-	if (self.nmt < iofmax):
-	  ipos = self.idir
-	if namp in self.cmt:
-	  # THE BLOCK NAMP WAS FOUND IN THE ACTIVE DIRECTORY EXTENT
-	  return self.cmt.index(namp)
-	if (self.link == istart):
+	self.offset = self.offset_next_sibling
+	self.step_into()
+	if name in self.sibling_names:
+	  return self.sibling_names.index(name)
+	if (self.offset_next_sibling != istart):
 	  break
-	self.idir = self.link
     return -1
+
+#----------------------------------------------------------------------#
+
+  def get_description(self,offset,name):
+    """
+    return length and type of a block, return 0 and 99 if the block is not found
+      name = name of the current block
+    OUTPUT PARAMETERS:
+      length : NUMBER OF INFORMATION ELEMENTS STORED IN THE CURRENT BLOCK.
+              ILONG=-1 IS RETURNED FOR A SCALAR DIRECTORY.
+              ILONG=0 IF THE BLOCK DOES NOT EXISTS.
+      itype : TYPE OF INFORMATION ELEMENTS STORED IN THE CURRENT BLOCK.
+              0: DIRECTORY                1: INTEGER
+              2: SINGLE PRECISION         3: CHARACTER*4
+              4: DOUBLE PRECISION         5: LOGICAL
+              6: COMPLEX                 99: UNDEFINED
+    """
+    i = self.index(name, offset)
+    if (i > -1):
+      length = self.sibling_lengths[i]
+      type = self.sibling_types[i]
+    else:
+      length = 0
+      type = 99
+    return length, type
 
 #----------------------------------------------------------------------#
 
@@ -412,32 +383,31 @@ def browseXsm(xsm_list,elementList,ilev=1):
   for i,xsm in enumerate(xsm_list):
     if ilev >= 50:
       raise AssertionError("TOO MANY DIRECTORY LEVELS IN "+xsm.name)
-    # retrieve info about current block
-    namxsm, namedir, empty = xsm.info()
-    if not empty:
+    xsm.step_into()
+    if xsm.has_siblings():
       # get next label
-      namt = xsm.next()
-      if "***HANDLE***" == namt:
+      name = xsm.get_next_sibling_name()
+      if name == "***HANDLE***":
 	# keyword indicating a list item
-	ilong,itylcm = xsm.length(" ")
-	elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = "%08d"%(i+1),contentType = 0,content = Content(itylcm,-1,None,False,rawFormat="XSM")))
+	length,type = xsm.get_description(" ")
+	elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = "%08d"%(i+1),contentType = 0,content = Content(type,-1,None,False,rawFormat="XSM")))
 	# down to children
-	browseXsm(xsm.fetchchildren(" ",ilong),elementList,ilev = ilev+1)
+	browseXsm(xsm.fetchchildren(" ",length),elementList,ilev = ilev+1)
       else:
-	first = namt
+	first = name
 	# cycle thru labels
 	while True:
-	  ilong,itylcm = xsm.length(namt)
-	  if ilong != 0 and ( itylcm == 0 or itylcm == 10 ):
-	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt,contentType = 0,content = Content(itylcm,-1,None,False,rawFormat="XSM")))
+	  length,type = xsm.get_description(name)
+	  if length != 0 and ( type == 0 or type == 10 ):
+	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = name,contentType = 0,content = Content(type,-1,None,False,rawFormat="XSM")))
 	    #down to children
-	    browseXsm(xsm.fetchchildren(namt,ilong),elementList,ilev = ilev+1)
-	  elif ilong != 0 and itylcm <= 6:
+	    browseXsm(xsm.fetchchildren(name,length),elementList,ilev = ilev+1)
+	  elif length != 0 and type <= 6:
 	    # get data
-	    content = Content(itylcm,ilong,xsm.getblock(namt,itylcm),False,rawFormat="XSM")
-	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = namt,contentType = itylcm,content = content))
-	  namt = xsm.next(namt)
-	  if (namt == first):
+	    content = Content(type,length,xsm.read_block(name,type),False,rawFormat="XSM")
+	    elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = name,contentType = type,content = content))
+	  name = xsm.get_next_sibling_name(name)
+	  if (name == first):
 	    # cycle ended
 	    break
 

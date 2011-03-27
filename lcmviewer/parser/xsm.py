@@ -155,8 +155,26 @@ class xsm:
       xsm.offset  = offset
       xsm_list = [xsm]
     else:
-      raise AssertionError("INVALID LENGTH,TYPE (%d,%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(length,type,self.name))
+      raise AssertionError("INVALID LENGTH,TYPE (%d,%d) FOR NODE '%s' IN THE XSM FILE '%s'."%(length,type,name,self.name))
     return xsm_list
+
+  def fetchchilddata(self, name, length):
+    """
+    return children as an xsm list
+    
+    INPUT PARAMETERS:
+      self : ADDRESS OF THE FATHER TABLE.
+      NAMP : NAME OF THE DAUGHTER ASSOCIATIVE TABLE.
+    
+    OUTPUT PARAMETER:
+      xsm : ADDRESS OF THE DAUGHTER ASSOCIATIVE TABLE.
+    """
+    my_block=self.ibloc
+    i = my_block.index(name, self.offset)
+    length = my_block.sibling_lengths[i]
+    type = my_block.sibling_types[i]
+    offset = my_block.sibling_offsets[i]
+    return self.read_block(name,type)
 
 #----------------------------------------------------------------------#
 
@@ -392,7 +410,15 @@ def browseXsm(xsm_list,elementList,ilev=1):
 	length,type = xsm.get_description(" ")
 	elementList.append(LinkedListElement(id = len(elementList),level = ilev,labelType = 12,label = "%08d"%(i+1),contentType = 0,content = Content(type,-1,None,False,rawFormat="XSM")))
 	# down to children
-	browseXsm(xsm.fetchchildren(" ",length),elementList,ilev = ilev+1)
+	try:
+	  browseXsm(xsm.fetchchildren(" ",length),elementList,ilev = ilev+1)
+	except AssertionError:
+	  # get data
+	  content = Content(type,length,xsm.read_block(" ",type),False,rawFormat="XSM")
+	  lle = elementList.pop()
+	  lle.contentType = type
+	  lle.content = content
+	  elementList.append(lle)
       else:
 	first = name
 	# cycle thru labels

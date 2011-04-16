@@ -7,6 +7,7 @@ import wx
 
 from lcmviewer import CONFIG
 import parser
+from parser import LinkedListElement
 from MyCalculation import MyMicroLib, MyCalculation
 from MyRefcase import MyRefcase
 
@@ -255,8 +256,7 @@ class MyTreeCtrl(wx.TreeCtrl):
     else:
       fExpand = fPass
     root = self.AddRoot(filePath)
-    print elementList[0]
-    self.SetPyData(root,elementList[0])
+    self.SetPyData(root,LinkedListElement())
     self.BuildTree(elementList,fExpand,fSort)
   
   def getSummary(self,eltId):

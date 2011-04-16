@@ -20,7 +20,7 @@ def elementListFromFile(filePath):
 #----------------------------------------------------------------------#
 
 class LinkedListElement:
-  def __init__(self,id,level,labelType,label,contentType,content):
+  def __init__(self,id=None,level=None,labelType=None,label="",contentType=None,content=None):
     self.id = id
     self.level = level
     self.labelType = labelType

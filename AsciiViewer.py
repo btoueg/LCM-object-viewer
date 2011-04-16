@@ -164,7 +164,10 @@ class MainWindow(wx.Frame):
 
   def OnOpenFile(self, event):
     root = self.tree.GetRootItem()
-    defaultDir = os.path.dirname(self.tree.GetItemText(root))
+    if root.IsOk():
+      defaultDir = os.path.dirname(self.tree.GetItemText(root))
+    else:
+      defaultDir = os.path.abspath('.')
     filedlg = wx.FileDialog(self, style = wx.CHANGE_DIR, defaultDir = defaultDir)
     if filedlg.ShowModal() == wx.ID_OK:
       filePath = filedlg.GetDirectory()+'/'+filedlg.GetFilename()
@@ -250,6 +253,7 @@ class MainWindow(wx.Frame):
     self.SetStatusText("OnItemCollapsed:"+self.tree.GetItemText(evt.GetItem()))
 
   def OnSelChanged(self, evt, computationTime = True):
+    print evt
     if computationTime:
       self.SetStatusText("Computing... Please wait")
       self.Update()
@@ -258,7 +262,8 @@ class MainWindow(wx.Frame):
     eltId = evt.GetItem()
     eltData = self.tree.GetPyData(eltId)
     parentId = self.tree.GetItemParent(eltId)
-    parentData = self.tree.GetPyData(parentId)
+##    parentData = self.tree.GetPyData(parentId)
+    parentData = None
     eltDataLabel = ''
     eltDataContent = None
     if eltId != self.tree.GetRootItem():
@@ -376,7 +381,7 @@ class MyApp(wx.App):
     # MainWindow is the main frame.
     frame = MainWindow(None,-1,'The DRAGON multicompo viewer')
     #app.SetTopWindow(frame)
-    frame.OpenFile(self.file)
+##    frame.OpenFile(self.file)
     frame.Show(True)
 
 #----------------------------------------------------------------------#

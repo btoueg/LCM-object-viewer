@@ -265,9 +265,9 @@ class MainWindow(wx.Frame):
       eltDataLabel = eltData.label
       eltDataContentObject = eltData.content
       if isSequenceType(eltDataContentObject):
-	eltDataContent = eltDataContentObject
+        eltDataContent = eltDataContentObject
       else:
-	eltDataContent = eltDataContentObject.getContent()
+        eltDataContent = eltDataContentObject.getContent()
 
     if eltDataLabel == "CALCULATIONS" and eltDataContent != []:
       # second time a calculation node is selected

@@ -4,7 +4,7 @@
 # author : Benjamin Toueg
 # date : 24/11/09
 
-from . import LinkedListElement, Content
+from . import LinkedListElement, Content, fancyStep
 
 def asciiToElementList(filePath):
   with open(filePath) as inputfile:

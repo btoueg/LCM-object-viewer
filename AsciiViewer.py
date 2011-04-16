@@ -253,7 +253,6 @@ class MainWindow(wx.Frame):
     self.SetStatusText("OnItemCollapsed:"+self.tree.GetItemText(evt.GetItem()))
 
   def OnSelChanged(self, evt, computationTime = True):
-    print evt
     if computationTime:
       self.SetStatusText("Computing... Please wait")
       self.Update()
@@ -261,18 +260,20 @@ class MainWindow(wx.Frame):
     self.refresh()
     eltId = evt.GetItem()
     eltData = self.tree.GetPyData(eltId)
-    parentId = self.tree.GetItemParent(eltId)
-##    parentData = self.tree.GetPyData(parentId)
-    parentData = None
-    eltDataLabel = ''
-    eltDataContent = None
-    if eltId != self.tree.GetRootItem():
+    if eltId == self.tree.GetRootItem():
+      eltDataLabel = ''
+      eltDataContent = None
+      parentId = None
+      parentData = None
+    else:
       eltDataLabel = eltData.label
       eltDataContentObject = eltData.content
       if isSequenceType(eltDataContentObject):
         eltDataContent = eltDataContentObject
       else:
         eltDataContent = eltDataContentObject.getContent()
+      parentId = self.tree.GetItemParent(eltId)
+      parentData = self.tree.GetPyData(parentId)
 
     if eltDataLabel == "CALCULATIONS" and eltDataContent != []:
       # second time a calculation node is selected
@@ -381,7 +382,7 @@ class MyApp(wx.App):
     # MainWindow is the main frame.
     frame = MainWindow(None,-1,'The DRAGON multicompo viewer')
     #app.SetTopWindow(frame)
-##    frame.OpenFile(self.file)
+    frame.OpenFile(self.file)
     frame.Show(True)
 
 #----------------------------------------------------------------------#

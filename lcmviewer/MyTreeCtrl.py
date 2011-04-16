@@ -245,6 +245,7 @@ class MyTreeCtrl(wx.TreeCtrl):
   def recoverAsciiFile(self,filePath):
     def fPass(item):
       pass
+    elementList = parser.elementListFromFile(filePath)
     if CONFIG["sort"]:
       fSort = self.SortChildren
     else:
@@ -254,7 +255,8 @@ class MyTreeCtrl(wx.TreeCtrl):
     else:
       fExpand = fPass
     root = self.AddRoot(filePath)
-    elementList = parser.elementListFromFile(filePath)
+    print elementList[0]
+    self.SetPyData(root,elementList[0])
     self.BuildTree(elementList,fExpand,fSort)
   
   def getSummary(self,eltId):

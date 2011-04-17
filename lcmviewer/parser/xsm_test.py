@@ -14,39 +14,57 @@ BYTE_STEP_INTEGER = 4
 BYTE_STEP = 8
 
 class FileXsm:
+  
   def __init__(self,name):
     self.open(name)
+    header = self.read_header_and_rewind()
+    if header == '$XSM    ':
+      self.ARCH = 64
+    else:
+      self.ARCH = 32
+
+  def read_header_and_rewind(self):
+    header = self.file.read(8)
+    self.file.seek(0)
+    return header
+
   def open(self,name,mode='rb'):
     self.file = open(name,'rb')
+
   def close(self):
     self.file.close()
+
   def seek(self,cursor):
     self.file.seek(cursor*BYTE_STEP)
+
   def read(self,type,size):
-    cursor = self.file.tell()
+    if self.ARCH==64:
+      if type=='c':
+	type='c'
+	size *= 2
+      elif type=='i':
+	type='l'
     data = array(type)
-    if type=='c':
-      data.fromfile(self.file,size)
-      cursor += size
-    elif type=='i':
-      data.fromfile(self.file,size)
-      cursor += size*BYTE_STEP_INTEGER
-    self.file.seek(cursor)
+    data.fromfile(self.file,size)
     return data.tolist()
+
   def read_4c(self):
     """
     Read BYTE_STEP characters and tuncate the first 4
     """
-    return "".join(self.read('c',CHAR_LENGTH_WORD)[:4])
+    return "".join(self.read('c',4)[:4])
+
   def read_8c(self):
     return self.read_4c()+self.read_4c()
+
   def read_12c(self):
     return self.read_8c()+self.read_4c()
+
   def read_ints(self,n):
-    return self.read('i',n*BYTE_LENGTH_INTEGER)
+    return self.read('i',n)
+
   def read_int(self):
-    return self.read('i',BYTE_LENGTH_INTEGER).pop(0)
-    
+    return self.read('i',1).pop()
 #class Node:
   #self.offset
   #self.name
@@ -56,12 +74,6 @@ class FileXsm:
 
 
 if __name__=="__main__":
-  with open(file_path,'rb') as file_handle:
-    head=file_handle.read(8)
-    if head == '$XSM    ':
-      nbits = '64bits'
-    else:
-      nbits = '32bits'
   file_xsm = FileXsm(file_path)
   print file_xsm.read_4c(),"|"
   print file_xsm.read_int(),"|"
@@ -80,10 +92,10 @@ if __name__=="__main__":
   print file_xsm.read_12c(), "|"
   file_xsm.seek(191)
   print file_xsm.read_12c(),"|"
-  file_xsm.seek(194)
-  print file_xsm.read_4c(),"|"
-  file_xsm.seek(8766)
-  print file_xsm.read_4c(),"|"
+  #file_xsm.seek(194)
+  #print file_xsm.read_4c(),"|"
+  #file_xsm.seek(8766)
+  #print file_xsm.read_4c(),"|"
   #offset = file_xsm.read_int()
   #print offset
   #file_xsm.seek(offset)

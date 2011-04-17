@@ -4,6 +4,7 @@
 # author : Benjamin Toueg
 # date : 17/04/11
 
+from sys import platform
 from array import array
 
 file_path = "../../example/XsmMultiCompoV4"
@@ -14,14 +15,13 @@ BYTE_STEP_INTEGER = 4
 BYTE_STEP = 8
 
 class FileXsm:
-  
   def __init__(self,name):
     self.open(name)
     header = self.read_header_and_rewind()
     if header == '$XSM    ':
-      self.ARCH = 64
+      self.xsm_architecture = 64
     else:
-      self.ARCH = 32
+      self.xsm_architecture = 32
 
   def read_header_and_rewind(self):
     header = self.file.read(8)
@@ -38,14 +38,20 @@ class FileXsm:
     self.file.seek(cursor*BYTE_STEP)
 
   def read(self,type,size):
-    if self.ARCH==64:
+    step = 1
+    if self.xsm_architecture==64:
       if type=='c':
-	type='c'
-	size *= 2
+        type='c'
+        size *= 2
       elif type=='i':
-	type='l'
+        type='l'
+        if platform == 'win32':
+          size *= 2
+          step = 2
     data = array(type)
     data.fromfile(self.file,size)
+    if step > 1:
+      data = data[::step]
     return data.tolist()
 
   def read_4c(self):
@@ -65,13 +71,13 @@ class FileXsm:
 
   def read_int(self):
     return self.read('i',1).pop()
+
 #class Node:
   #self.offset
   #self.name
   #self.kind
   #self.length
   #self.children
-
 
 if __name__=="__main__":
   file_xsm = FileXsm(file_path)
@@ -92,11 +98,8 @@ if __name__=="__main__":
   print file_xsm.read_12c(), "|"
   file_xsm.seek(191)
   print file_xsm.read_12c(),"|"
-  #file_xsm.seek(194)
-  #print file_xsm.read_4c(),"|"
-  #file_xsm.seek(8766)
-  #print file_xsm.read_4c(),"|"
-  #offset = file_xsm.read_int()
-  #print offset
-  #file_xsm.seek(offset)
-  #print file_xsm.read_4c()
+  file_xsm.seek(194)
+  print file_xsm.read_4c(),"|"
+  file_xsm.seek(8766)
+  print file_xsm.read_4c(),"|"
+

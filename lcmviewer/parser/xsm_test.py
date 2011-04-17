@@ -78,7 +78,7 @@ class FileXsm:
     return self.read('f',n)
 
 class Node:
-  def __init__(self,offset,length,type,name="no name"):
+  def __init__(self,offset,length=-1,type=0,name="no name"):
     self.offset = offset
     self.type = type
     self.length = length
@@ -91,10 +91,11 @@ class Node:
     s += "\nType : %d"%(self.type)
     s += "\nLength : %d"%(self.length)
     if self.loaded_in_memory:
-      if self.type == -1:
+      if self.type == 0:
         s += "\nDistance from file start : %d"%(self.offset*BYTE_STEP)
         s += "\nDistance to parent node : %d"%(self.parent_offset*BYTE_STEP)
         s += "\nDistance to next sibling : %d"%(self.next_sibling_offset*BYTE_STEP)
+        s += "\nNumber of children : %d"%(len(self.children))
       elif self.type == 10:
         pass
       elif self.type in [1,2,3]:
@@ -106,7 +107,7 @@ class Node:
 
   def load(self,file_xsm):
     file_xsm.seek(self.offset)
-    if self.type == -1 or self.type == 0:
+    if self.type == 0:
       if file_xsm.read_4c() != "$$$$":
         raise
       max_number_of_children = file_xsm.read_int()
@@ -121,12 +122,15 @@ class Node:
       self.children = []
       for child_index in xrange(number_of_children):
         node = Node(children_offset[child_index],children_length[child_index],children_type[child_index],children_name[child_index])
+        if node.type == 10:
+          print node.name,node.length,self.name,self.length,number_of_children
         self.children.append(node)
     elif self.type == 10:
+      print 
       children_offset = file_xsm.read_ints(self.length)
       self.children = []
-      for child_index in xrange(self.length):
-        node = Node(children_offset[child_index],-1,0)
+      for child_offset in children_offset:
+        node = Node(child_offset)
         self.children.append(node)
     elif self.type == 1:
       self.data = file_xsm.read_ints(self.length)
@@ -143,7 +147,16 @@ def depth_first_search(file_xsm,node_list):
   for node in node_list:
     node.load(file_xsm)
     print node
-    if node.type in [-1,0,10]:
+    if node.type == 10:
+      for index,list_item in enumerate(node.children):
+        list_item.load(file_xsm)
+        if(list_item.type==0):
+          if(len(list_item.children))>0:
+            list_item.name = "%08d"%(index+1)
+          else:
+            list_item.name = "empty"
+      depth_first_search(file_xsm,node.children)
+    elif node.type in [0]:
       depth_first_search(file_xsm,node.children)
 
 if __name__=="__main__":
@@ -151,7 +164,7 @@ if __name__=="__main__":
   print file_xsm.read_4c()
   print file_xsm.read_int()
   offset_root = file_xsm.read_int()
-  root = Node(offset_root,1,-1)
+  root = Node(offset_root)
   root.load(file_xsm)
   print root
   depth_first_search(file_xsm,[root])

@@ -48,6 +48,8 @@ class FileXsm:
         if platform == 'win32':
           size *= 2
           step = 2
+      elif type=='f':
+	type='d'
     data = array(type)
     data.fromfile(self.file,size)
     if step > 1:
@@ -71,6 +73,9 @@ class FileXsm:
 
   def read_int(self):
     return self.read('i',1).pop()
+  
+  def read_reals(self,n):
+    return self.read('f',n)
 
 class Node:
   def __init__(self,offset,length,type,name="no name"):
@@ -80,6 +85,23 @@ class Node:
     self.name = name
     self.loaded_in_memory = False
   
+  def __str__(self):
+    s  = "Node '%s'"%(self.name)
+    s += "\nOffset : %d"%(self.offset*BYTE_STEP)
+    s += "\nType : %d"%(self.type)
+    s += "\nLength : %d"%(self.length)
+    if self.loaded_in_memory:
+      if self.type == -1:
+	s += "\nDistance from file start : %d"%(self.offset*BYTE_STEP)
+	s += "\nDistance to parent node : %d"%(self.parent_offset*BYTE_STEP)
+	s += "\nDistance to next sibling : %d"%(self.next_sibling_offset*BYTE_STEP)
+      elif self.type in [1,2,3]:
+	s += "\nData :"
+	s += ",".join([ str(item) for item in self.data])
+    else:
+      s += "\nNot yet loaded in memory."
+    return s
+
   def load(self,file_xsm):
     file_xsm.seek(self.offset)
     if self.type == -1 or self.type == 0:
@@ -98,28 +120,13 @@ class Node:
       for child_index in xrange(number_of_children):
 	node = Node(children_offset[child_index],children_length[child_index],children_type[child_index],children_name[child_index])
 	self.children.append(node)
-    elif self.type == 2:
+    elif self.type == 1:
       self.data = file_xsm.read_ints(self.length)
+    elif self.type == 2:
+      self.data = file_xsm.read_reals(self.length)
     elif self.type == 3:
-      self.data = [file_xsm.read_12c()]
+      self.data = [file_xsm.read_4c() for n in xrange(self.length)]
     self.loaded_in_memory = True
-
-  def __str__(self):
-    s  = "Node '%s'"%(self.name)
-    s += "\nOffset : %d"%(self.offset*BYTE_STEP)
-    s += "\nType : %d"%(self.type)
-    s += "\nLength : %d"%(self.length)
-    if self.loaded_in_memory:
-      if self.type == -1:
-	s += "\nDistance from file start : %d"%(self.offset*BYTE_STEP)
-	s += "\nDistance to parent node : %d"%(self.parent_offset*BYTE_STEP)
-	s += "\nDistance to next sibling : %d"%(self.next_sibling_offset*BYTE_STEP)
-      elif self.type in [2,3]:
-	s += "\nData :"
-	s += ",".join([ str(item) for item in self.data])
-    else:
-      s += "\nNot yet loaded in memory."
-    return s
 
 if __name__=="__main__":
   file_xsm = FileXsm(file_path)

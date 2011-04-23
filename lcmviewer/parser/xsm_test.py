@@ -18,8 +18,16 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from os.path import abspath
+import sys
 from sys import platform
 from array import array
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0,abspath('..'))
+    __package__ = "parser"
+    module = __import__(__package__)
+    reload(module)
+    del sys.path[0]
+from . import LinkedListElement, Content
 
 BYTE_STEP = 8
 
@@ -43,10 +51,10 @@ class FileXsm:
   def close(self):
     self.file.close()
 
-  def depth_first_search(self,node_list):
+  def depth_first_search(self,node_list,depth=0):
     for node in node_list:
       node.load(self)
-      yield node
+      yield node,depth
       if node.type == 10:
         for index,list_item in enumerate(node.children):
           list_item.load(self)
@@ -55,11 +63,11 @@ class FileXsm:
               list_item.name = "%08d"%(index+1)
             else:
               list_item.name = "empty"
-        for y in self.depth_first_search(node.children):
-          yield y
+        for n,d in self.depth_first_search(node.children,depth+1):
+          yield n,d
       elif node.type in [0]:
-        for y in self.depth_first_search(node.children):
-          yield y
+        for n,d in self.depth_first_search(node.children,depth+1):
+          yield n,d
 
   def seek(self,cursor):
     self.file.seek(cursor*BYTE_STEP)
@@ -111,6 +119,7 @@ class Node:
     self.length = length
     self.name = name
     self.loaded_in_memory = False
+    self.data = None
   
   def __str__(self):
     """
@@ -179,14 +188,21 @@ class Node:
     self.loaded_in_memory = True
 
 def xsmToElementList(filePath):
-  file_xsm = FileXsm(file_path)
+  file_xsm = FileXsm(filePath)
   if file_xsm.read_4c()!="$XSM":
     raise Exception("%s is not an XSM file"%abspath(file_xsm.file.name))
   print file_xsm.read_int()
   offset_root = file_xsm.read_int()
   root = Node(offset_root)
   elementList = []
-  file_xsm.depth_first_search([root])
+  node_generator = file_xsm.depth_first_search([root])
+  for i,(node,depth) in enumerate(node_generator):
+    if node.data == None:
+      content = Content(node.type,-1,None,False,rawFormat="XSM")
+    else:
+      content = Content(node.type,len(node.data),node.data,False,rawFormat="XSM")
+    print depth
+    elementList.append(LinkedListElement(0,depth,12,node.name,node.type,content))
   file_xsm.close()
   return elementList
 
@@ -199,7 +215,13 @@ if __name__=="__main__":
   offset_root = file_xsm.read_int()
   root = Node(offset_root)
   node_generator = file_xsm.depth_first_search([root])
-  for node in node_generator:
-    print node
+  for i,(node,depth) in enumerate(node_generator):
+    if node.data == None:
+      content = Content(node.type,-1,None,False,rawFormat="XSM")
+    else:
+      content = Content(node.type,len(node.data),node.data,False,rawFormat="XSM")
+    lle = LinkedListElement(0,depth,12,node.name,node.type,content)
+    print lle
+    #print node,depth
   file_xsm.close()
 

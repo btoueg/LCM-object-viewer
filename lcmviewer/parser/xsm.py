@@ -6,8 +6,16 @@
 
 # original source code from Ganlib Version5 in C and FORTRAN77
 
+from os.path import abspath
+import sys
 from array import array
 from copy import copy
+if __name__ == "__main__" and __package__ is None:
+    sys.path.insert(0,abspath('..'))
+    __package__ = "parser"
+    module = __import__(__package__)
+    reload(module)
+    del sys.path[0]
 from . import LinkedListElement, Content
 
 MAX_NUMBER_OF_SIBLINGS = 30
@@ -438,3 +446,18 @@ def browseXsm(xsm_list,elementList,ilev=1):
 	    break
 
 #----------------------------------------------------------------------#
+
+if __name__=="__main__":
+  filePath = "../../example/XsmMultiCompoV4"
+  with open(filePath,'rb') as inputfile:
+    head=inputfile.read(8)
+    if head == '$XSM    ':
+      nbits = '64bits'
+    else:
+      nbits = '32bits'
+    elementList = []
+    xsm_handle = xsm(inputfile,nbits)
+    browseXsm([xsm_handle],elementList)
+  for i,lle in enumerate(elementList):
+    print lle
+    if i>100: break

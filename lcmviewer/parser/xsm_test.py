@@ -63,7 +63,7 @@ class FileXsm:
               list_item.name = "%08d"%(index+1)
             else:
               list_item.name = "empty"
-        for n,d in self.depth_first_search(node.children,depth+1):
+        for n,d in self.depth_first_search(node.children,depth):
           yield n,d
       elif node.type in [0]:
         for n,d in self.depth_first_search(node.children,depth+1):
@@ -164,11 +164,10 @@ class Node:
       self.children = []
       for child_index in xrange(number_of_children):
         node = Node(children_offset[child_index],children_length[child_index],children_type[child_index],children_name[child_index])
-        if node.type == 10:
-          print node.name,node.length,self.name,self.length,number_of_children
+        #if node.type == 10:
+          #print node.name,node.length,self.name,self.length,number_of_children
         self.children.append(node)
     elif self.type == 10:
-      print 
       children_offset = file_xsm.read_ints(self.length)
       self.children = []
       for child_offset in children_offset:
@@ -202,7 +201,7 @@ def xsmToElementList(filePath):
     else:
       content = Content(node.type,len(node.data),node.data,False,rawFormat="XSM")
     print depth
-    elementList.append(LinkedListElement(0,depth,12,node.name,node.type,content))
+    elementList.append(LinkedListElement(i,depth,12,node.name,node.type,content))
   file_xsm.close()
   return elementList
 
@@ -211,17 +210,20 @@ if __name__=="__main__":
   file_xsm = FileXsm(file_path)
   if file_xsm.read_4c()!="$XSM":
     raise Exception("%s is not an XSM file"%abspath(file_xsm.file.name))
-  print file_xsm.read_int()
+  file_xsm.read_int()
   offset_root = file_xsm.read_int()
   root = Node(offset_root)
   node_generator = file_xsm.depth_first_search([root])
+  node_generator.next()
   for i,(node,depth) in enumerate(node_generator):
     if node.data == None:
       content = Content(node.type,-1,None,False,rawFormat="XSM")
     else:
       content = Content(node.type,len(node.data),node.data,False,rawFormat="XSM")
-    lle = LinkedListElement(0,depth,12,node.name,node.type,content)
-    print lle
-    #print node,depth
+    if node.type != 10:
+      lle = LinkedListElement(i,depth,12,node.name,node.type,content)
+      i-=1
+      print lle
+    if i>100: break
   file_xsm.close()
 

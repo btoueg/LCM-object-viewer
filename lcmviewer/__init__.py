@@ -1,8 +1,11 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
-import os,types
+import os,types,codecs
+from sys import getfilesystemencoding
 import ConfigParser
+
+ENCODING=getfilesystemencoding()
 
 CONFIGFILEPATH = os.path.expanduser('~/.lcmviewer.cfg')
 
@@ -20,7 +23,8 @@ def loadConfig(cfgFilePath=CONFIGFILEPATH):
   if (os.path.isfile(cfgFilePath)):
     cfg = ConfigParser.RawConfigParser()
     try:
-      cfg.read(cfgFilePath)
+      with codecs.open(cfgFilePath, "r", ENCODING) as configFile:
+        cfg.readfp(configFile)
       for key,value in CONFIG.items():
 	t = type(value)
 	if t == types.BooleanType:
@@ -43,6 +47,8 @@ def saveConfig(cfgFilePath=CONFIGFILEPATH):
   cfg = ConfigParser.RawConfigParser()
   cfg.add_section(CONFIGSECTION)
   for key,value in CONFIG.items():
+    if isinstance( value, basestring ):
+      value = value.encode(ENCODING)
     cfg.set(CONFIGSECTION, key, value)
   with open(cfgFilePath, 'wb') as f:
     cfg.write(f)

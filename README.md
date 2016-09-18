@@ -1,7 +1,9 @@
 LCM-object-viewer
 =================
 
-GUI for XSM files from [DRAGON](http://www.polymtl.ca/nucleaire/DRAGON/en/index.php)/[DONJON](http://www.polymtl.ca/nucleaire/DONJON/en/download/index.php) and [APOLLO](http://mathematicsandcomputation.cowhosting.net/MC09/pdfs/201216.pdf) neutronic codes: look inside `LCM objects` (`LINKED_LIST`, `SEQ_ASCII` and `XSM_FILE`) like a breeze!
+GUI for XSM files from [DRAGON](http://www.polymtl.ca/nucleaire/DRAGON/en/index.php)/[DONJON](http://www.polymtl.ca/nucleaire/DONJON/en/download/index.php) and [APOLLO](http://mathematicsandcomputation.cowhosting.net/MC09/pdfs/201216.pdf) neutronic codes.
+
+*Take a peek inside `LCM objects` (`LINKED_LIST`, `SEQ_ASCII` and `XSM_FILE`) like a breeze!*
 
 ## Screenshot
 
@@ -9,7 +11,7 @@ GUI for XSM files from [DRAGON](http://www.polymtl.ca/nucleaire/DRAGON/en/index.
 
 ## Instructions
 
-1. Convert your object in XSM_FILE or SEQ_ASCII format: `XSM_FILE xsm_ouput ; xsm_output := lcm_input ;`
+1. Convert your object in `XSM_FILE` or `SEQ_ASCII` format: `XSM_FILE xsm_ouput ; xsm_output := lcm_input ;`
 2. Open the output file with `LCM-object-viewer`
 
 ## Installation
